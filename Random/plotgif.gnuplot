@@ -1,6 +1,6 @@
 # Set the output format and file name
 set terminal gif animate size 800,800 delay 100
-set output 'prueba1.gif'
+set output '2000.gif'
 
 # Set the plot range and ratio
 set size square

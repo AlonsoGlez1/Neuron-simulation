@@ -3,6 +3,7 @@
 #include <time.h>
 #include <math.h>
 
+
 // Define a structure to represent a neuron
 typedef struct 
 {
@@ -16,27 +17,28 @@ typedef struct
 double distance(Particle p1, Particle p2);
 int isOverlapping(Particle *particles, int numParticles, Particle newParticle);
 float isInside(float max, float min);
-double connectionProbability(double dist, double maxDistance, double intFactor);
+double connectionProbability(double dist, double maxDistance, double intDistFactor);
 double interDistance(Particle p1, Particle p2, Particle p3);
 
 
 int main() {
     int numParticles, N_connections, N_synapses;
     double L_x, L_y, radius;
-    char particleFile[100], connectionFile[100];
+    char particleFile[100], connectionFile[100], modo;
 
     // Seed the random number generator
     srand(time(NULL));
 
     // Read the number of neurons, and the dimensions of the box, radius, connections and max number of synapses
+    printf("Random or Lattice (R/L): "); scanf("%c", &modo);
     printf("Enter the number of neurons: "); scanf("%d", &numParticles);
     printf("Enter the width (L_x) of the box: "); scanf("%lf", &L_x);
     printf("Enter the height (L_y) of the box: "); scanf("%lf", &L_y);
     printf("Enter the radius of the neurons: "); scanf("%lf", &radius);
     printf("Enter the number N of connections: "); scanf("%d", &N_connections);
     printf("Enter the number N of synapses per neuron: "); scanf("%d", &N_synapses);
-    printf("Enter the filename to save neuron data (.dat): "); scanf("%s", particleFile);
-    printf("Enter the filename to save connection data (.dat): "); scanf("%s", connectionFile);
+    printf("Enter the filename to save neuron data (.dat): "); scanf(" %s", particleFile);
+    printf("Enter the filename to save connection data (.dat): "); scanf(" %s", connectionFile);
 
     // Allocate memory for the neurons
     Particle *particles = (Particle *)malloc(numParticles * sizeof(Particle));
@@ -47,19 +49,50 @@ int main() {
         return 1;
     }
 
-    // Initialize neuron positions randomly within the box without overlap
-    int placedParticles = 0;
-    while (placedParticles < numParticles) 
+    //Random positioning or Lattice
+    if (modo == 'R' || modo == 'r')
     {
-        Particle newParticle;
-        newParticle.x = isInside(L_x,radius);
-        newParticle.y = isInside(L_y,radius);
-        newParticle.radius = radius;
+        // Initialize neuron positions randomly within the box without overlap
+        int placedParticles = 0;
+        while (placedParticles < numParticles) 
+        {
+            Particle newParticle;
+            newParticle.x = isInside(L_x,radius);
+            newParticle.y = isInside(L_y,radius);
+            newParticle.radius = radius;
 
-        if (!isOverlapping(particles, placedParticles, newParticle)) {
-            particles[placedParticles] = newParticle;
-            placedParticles++;
+            if (!isOverlapping(particles, placedParticles, newParticle)) {
+                particles[placedParticles] = newParticle;
+                placedParticles++;
+            }
         }
+    }
+    else if (modo == 'L' || modo == 'l')
+    {
+        // Initialize particle positions within the box without overlap
+        int numRows = (int)sqrt(numParticles);
+        int numCols = (numParticles + numRows - 1) / numRows; // This handles cases where numParticles is not a perfect square
+
+        double dx = (L_x - 2 * radius) / (numCols - 1); // Spacing between particles in the x direction
+        double dy = (L_y - 2 * radius) / (numRows - 1); // Spacing between particles in the y direction
+
+        int placedParticles = 0;
+        for (int i = 0; i < numRows; ++i) {
+            for (int j = 0; j < numCols; ++j) {
+                if (placedParticles < numParticles) {
+                    particles[placedParticles].x = radius + j * dx;
+                    particles[placedParticles].y = radius + i * dy;
+                    particles[placedParticles].radius = radius;
+                    placedParticles++;
+                }
+            }
+        }
+
+    }
+    else
+    {
+        printf("\n Not a valid mode \n");
+        return 1;
     }
 
     // Open the file for writing
@@ -109,21 +142,31 @@ int main() {
             {
                 
                 //Reduced probability by intermediate neurons
-                double intFactor = 1.0;
+                double intDistFactor = 1.0;
                 for(int j = 0; j < numParticles; j++)
                 {
-                    if (j != currentParticle && j != candidateParticle){
-                        double distance = interDistance(particles[currentParticle], particles[candidateParticle], particles[j]);
+                    if (j != currentParticle && j != candidateParticle)
+                    {
+                        double interdistance = interDistance(particles[currentParticle], particles[candidateParticle], particles[j]);
 
-                        if(distance < radius)
+                        if(interdistance < radius)
                         {
-                            intFactor *= distance/radius;
+                            if (interdistance > 0.5 * radius)
+                            {
+                             intDistFactor *= interdistance / radius;
+                            }
+                            else if (particles[j].synapses < N_synapses - 1
+                                && distance(particles[currentParticle], particles[j]) < distance(particles[currentParticle], particles[candidateParticle])) 
+                            {
+                                intDistFactor = 1.0;
+                                candidateParticle = j;
+                            }
                         }
                     }
                 }
                 
                 double dist = distance(particles[currentParticle], particles[candidateParticle]);
-                double prob = connectionProbability(dist, maxDistance, intFactor);
+                double prob = connectionProbability(dist, maxDistance, intDistFactor);
                 
                 // Use probability to decide whether to connect
                 if (((double)rand() / RAND_MAX) < prob)
@@ -159,6 +202,7 @@ int main() {
 
     // Close the file
     fclose(connectionFilePtr);
+    
     // Free the allocated memory
     free(particles);
     printf("Neuron data saved to %s and connection data saved to %s\n", particleFile, connectionFile);
@@ -192,19 +236,26 @@ float isInside(float max, float min)
 }
 
 // Function to determine connection probability based on distance
-double connectionProbability(double dist, double maxDistance, double intFactor)
+double connectionProbability(double dist, double maxDistance, double intDistFactor)
 {
-    double decayFactor = 20.0;
+    double decayFactor = 10.0;
     if (dist >= maxDistance) 
     {
         return 0.0;
     }
-    return (1 - dist/maxDistance) * exp(- decayFactor * (dist/maxDistance)) * intFactor;
+    return (1 - dist/maxDistance) * exp(- decayFactor * (dist/maxDistance)) * intDistFactor;
 }
 
 //Function to calculate the distance between a neuron and the line connecting a pair of neurons
 double interDistance(Particle p1, Particle p2, Particle p3)
 {
-    return fabs((p2.y - p1.y) * p3.x - (p2.x - p1.x) * p3.y + p2.x * p1.y - p2.y * p1.x) 
-                / sqrt(pow(p2.y - p1.y, 2) + pow(p2.x - p1.x, 2));
+    double lineLength = sqrt(pow(p2.y - p1.y, 2) + pow(p2.x - p1.x, 2));
+    
+    if (lineLength < 1e-9) // Avoid floating-point issues
+    {
+        return distance(p1, p3); // If p1 and p2 are essentially the same point, return distance to p1
+    }
+
+    return fabs((p2.y - p1.y) * p3.x - (p2.x - p1.x) * p3.y + p2.x * p1.y - p2.y * p1.x) / lineLength;
 }
+
