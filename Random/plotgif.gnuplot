@@ -13,7 +13,7 @@ set style line 1 lc rgb 'black' pt 10 ps 1.5
 set style line 2 lc rgb 'black' lt 1 lw 2
 
 # Plot circles once
-plot 'neurons' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
+plot 'neurons' skip 1 using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
 
 # Loop through the lines
 do for [i=1:50] {

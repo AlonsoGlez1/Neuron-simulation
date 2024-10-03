@@ -7,6 +7,7 @@
     || Define macros ||  
     +=================+  */
 #define PI 3.141592654
+#define DECAYFACTOR 10.0
 
 /*  +===============================================+
     ||  Define a structure to represent a neuron   ||  
@@ -23,7 +24,7 @@ typedef struct
     ||  FUNCTION PROTOTYPES   ||  
     +==========================+  */
 double packingFraction(int numParticles, double L_x, double L_y, double radius);
-double distance(Particle p1, Particle p2);
+double Distance(Particle p1, Particle p2);
 int isOverlapping(Particle *particles, int numParticles, Particle newParticle);
 float setInside(float max, float min);
 double connectionProbability(double dist, double maxDistance, double intDistFactor);
@@ -41,7 +42,7 @@ int main() {
     // Seed the random number generator
     srand(time(NULL));
 
-    // Read the number of neurons, and the dimensions of the box, radius, connections and max number of synapses
+    // Read the number of neurons, the dimensions of the box and neuron radii
     printf("Random or Lattice mode (R/L): "); scanf("%c", &modo);
     printf("Enter the number of neurons: "); scanf("%d", &numParticles);
     printf("Enter the width (L_x) of the box: "); scanf("%lf", &L_x);
@@ -52,13 +53,14 @@ int main() {
     packingfraction = packingFraction(numParticles, L_x, L_y, radius);
     if (packingfraction >= 0.65)
     {
-        printf("Packing fraction: %f is too dense. \n", packingfraction);
+        printf("Packing fraction: %.5f is too dense. \n", packingfraction);
         return 1;
     }
     else{
-        printf("Packing fraction: %.2f \n", packingfraction);
+        printf("Packing fraction: %.5f \n", packingfraction);
     }
 
+    //Read N_connections, N_synapses and file names
     printf("Enter the number N of connections: "); scanf("%d", &N_connections);
     printf("Enter the number N of synapses per neuron: "); scanf("%d", &N_synapses);
     printf("Enter the filename to save neuron data (.dat): "); scanf(" %s", particleFile);
@@ -101,9 +103,12 @@ int main() {
         double dy = (L_y - 2 * radius) / (numRows - 1); // Spacing between particles in the y direction
 
         int placedParticles = 0;
-        for (int i = 0; i < numRows; ++i) {
-            for (int j = 0; j < numCols; ++j) {
-                if (placedParticles < numParticles) {
+        for (int i = 0; i < numRows; ++i) 
+        {
+            for (int j = 0; j < numCols; ++j) 
+            {
+                if (placedParticles < numParticles) 
+                {
                     particles[placedParticles].x = radius + j * dx;
                     particles[placedParticles].y = radius + i * dy;
                     particles[placedParticles].radius = radius;
@@ -123,7 +128,7 @@ int main() {
     FILE *particleFilePtr = fopen(particleFile, "w");
     if (particleFilePtr == NULL) 
     {
-        fprintf(stderr, "Failed to open file for writing\n");
+        fprintf(stderr, "\nFailed to open file for writing\n");
         free(particles);
         return 1;
     }
@@ -141,7 +146,7 @@ int main() {
     FILE *connectionFilePtr = fopen(connectionFile, "w");
     if (connectionFilePtr == NULL) 
     {
-        fprintf(stderr, "Failed to open connection data file for writing\n");
+        fprintf(stderr, "\nFailed to open connection data file for writing\n");
         free(particles);
         return 1;
     }
@@ -165,7 +170,6 @@ int main() {
                     && particles[candidateParticle].synapses < N_synapses - 1
                         && particles[currentParticle].synapses < N_synapses) 
             {
-                
                 //Reduced probability by intermediate neurons
                 double intDistFactor = 1.0;
                 for(int j = 0; j < numParticles; j++)
@@ -182,9 +186,9 @@ int main() {
                              intDistFactor *= interdistance / radius; 
                             }
                             else if (particles[j].synapses < N_synapses - 1
-                                && distance(particles[currentParticle], particles[j]) < distance(particles[currentParticle], particles[candidateParticle])) 
+                                && Distance(particles[currentParticle], particles[j]) < Distance(particles[currentParticle], particles[candidateParticle])) 
                             {
-                                //If the neuron is practically intersecting, this particle is the new candidate
+                                // If the neuron intersects completely the axon/dendrite, this neuron is the new candidate
                                 intDistFactor = 1.0;
                                 candidateParticle = j;
                             }
@@ -193,12 +197,12 @@ int main() {
                 }
                 
                 // Use probability to decide whether to connect
-                double dist = distance(particles[currentParticle], particles[candidateParticle]);
+                double dist = Distance(particles[currentParticle], particles[candidateParticle]);
                 double prob = connectionProbability(dist, maxDistance, intDistFactor);
                 if (((double)rand() / RAND_MAX) < prob)
                 { 
-                            nextParticle = candidateParticle;
-                            break;
+                    nextParticle = candidateParticle;
+                    break;
                 }
             }
         }
@@ -206,7 +210,7 @@ int main() {
         // If a valid next neuron was found, create a connection
         if (nextParticle != -1)
         {   
-            totalDistance += distance(particles[currentParticle], particles[nextParticle]);
+            totalDistance += Distance(particles[currentParticle], particles[nextParticle]);
 
             fprintf(connectionFilePtr, "%lf %lf %lf %lf\n",
                         particles[currentParticle].x, particles[currentParticle].y, particles[nextParticle].x, particles[nextParticle].y);
@@ -228,7 +232,7 @@ int main() {
 
     // Print the end-to-end distance to the file and close the file
     fprintf(connectionFilePtr, "  \n \n Total Distance: %.2lf \n", totalDistance); fclose(connectionFilePtr);
-    
+
     // Free the allocated memory
     free(particles);
     printf("Neuron data saved to %s and connection data saved to %s\n", particleFile, connectionFile);
@@ -250,12 +254,13 @@ double packingFraction(int numParticles, double L_x, double L_y, double radius)
 {
     return (numParticles * PI * pow(radius, 2)) / (L_x * L_y);
 }
+
 /*  +--------------------------------------------------------------------------------------------+  
     |       FUNCTION TO CALCULATE THE DISTANCE BETWEEN TWO POINTS                                |
     |                                                                                            |
     | Takes (x1 , y1) form particle 1 and (x2 , y2) from particle 2 and calculates its distance. |
     +--------------------------------------------------------------------------------------------+  */ 
-double distance(Particle p1, Particle p2)
+double Distance(Particle p1, Particle p2)
 {
     return sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2));
 }
@@ -269,7 +274,7 @@ double distance(Particle p1, Particle p2)
 int isOverlapping(Particle *particles, int numParticles, Particle newParticle)
 {
     for (int i = 0; i < numParticles; ++i) {
-        if (distance(particles[i], newParticle) < 2 * newParticle.radius) {
+        if (Distance(particles[i], newParticle) < 2 * newParticle.radius) {
             return 0;
         }
     }
@@ -297,12 +302,11 @@ float setInside(float max, float min)
     +--------------------------------------------------------------------------------------------------+  */
 double connectionProbability(double dist, double maxDistance, double intDistFactor)
 {
-    double decayFactor = 10.0;
     if (dist >= maxDistance) 
     {
         return 0.0;
     }
-    return (1 - dist/maxDistance) * exp(- decayFactor * (dist/maxDistance)) * intDistFactor;
+    return (1 - dist/maxDistance) * exp(- DECAYFACTOR * (dist/maxDistance)) * intDistFactor;
 }
 
 /*  +---------------------------------------------------------------------------------------------------------+
@@ -313,11 +317,11 @@ double connectionProbability(double dist, double maxDistance, double intDistFact
     +---------------------------------------------------------------------------------------------------------+  */
 double interDistance(Particle p1, Particle p2, Particle p3)
 {
-    double lineLength = distance(p1 , p2);
+    double lineLength = Distance(p1 , p2);
    
     if (lineLength < 1e-9) 
     {
-        return distance(p1, p3);
+        return Distance(p1, p3);
     }
     return fabs((p2.y - p1.y) * p3.x - (p2.x - p1.x) * p3.y + p2.x * p1.y - p2.y * p1.x) / lineLength;
 }
