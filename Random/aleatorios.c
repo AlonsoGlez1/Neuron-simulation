@@ -1,24 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 
 /*  +=================+
     || Define macros ||  
     +=================+  */
-#define PI 3.141592654
-#define DECAYFACTOR 10.0
+#define PI 3.141592654          // Constant for the value of pi
+#define DECAYFACTOR 20.0        // Factor for the exponential decay in connection probability
+#define THRESHOLD_RADIUS 20.0   // Radius within which to consider nearby particles
+#define PACKING_FRACTION 0.68   // Packing fraction of the system (area occupied / total area)
 
 /*  +===============================================+
     ||  Define a structure to represent a neuron   ||  
     +===============================================+  */
 typedef struct 
 {
-    double x;
-    double y;
-    double radius;
-    int synapses;
+    double x;       // x-coordinate of the neuron
+    double y;       // y-coordinate of the neuron
+    double radius;  // Radius of the neuron
+    int synapses;   // Number of synapses (connections) the neuron has
 } Particle;
+
 
 /*  +==========================+
     ||  FUNCTION PROTOTYPES   ||  
@@ -29,42 +33,47 @@ int isOverlapping(Particle *particles, int numParticles, Particle newParticle);
 float setInside(float max, float min);
 double connectionProbability(double dist, double maxDistance, double intDistFactor);
 double interDistance(Particle p1, Particle p2, Particle p3);
+void findNearbyParticles(Particle *particles, int numParticles, int ***nearbyParticles, int **nearbyCounts);
+void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCounts);
 
 
 /*  +====================+
     ||  MAIN FUNCTION   ||  
     +====================+  */
 int main() {
-    int numParticles, N_connections, N_synapses;
-    double L_x, L_y, radius, totalDistance, packingfraction;
-    char modo, particleFile[100], connectionFile[100];
+    int numParticles, N_connections, N_synapses;                // Number of particles, connections and synapses
+    double L_x, L_y, radius, totalDistance, packingfraction;    //Dimensions and variables
+    char modo, particleFile[100], connectionFile[100];          // Mode (random|lattice) and filenames
+
 
     // Seed the random number generator
     srand(time(NULL));
 
-    // Read the number of neurons, the dimensions of the box and neuron radii
-    printf("Random or Lattice mode (R/L): "); scanf("%c", &modo);
-    printf("Enter the number of neurons: "); scanf("%d", &numParticles);
-    printf("Enter the width (L_x) of the box: "); scanf("%lf", &L_x);
-    printf("Enter the height (L_y) of the box: "); scanf("%lf", &L_y);
-    printf("Enter the radius of the neurons: "); scanf("%lf", &radius);
 
-    // Check the packing fraction, if too dense, it cant locate all the neurons
+    // Read the number of neurons, the dimensions of the box and neuron radii
+    printf("Random or Lattice mode (R/L): ");       scanf("%c", &modo);
+    printf("Enter the number of neurons: ");        scanf("%d", &numParticles);
+    printf("Enter the width (L_x) of the box: ");   scanf("%lf", &L_x);
+    printf("Enter the height (L_y) of the box: ");  scanf("%lf", &L_y);
+    printf("Enter the radius of the neurons: ");    scanf("%lf", &radius);
+
+
+    // Check the packing fraction, if too dense, it cannot locate all neurons
     packingfraction = packingFraction(numParticles, L_x, L_y, radius);
-    if (packingfraction >= 0.65)
+    if (packingfraction >= PACKING_FRACTION)
     {
         printf("Packing fraction: %.5f is too dense. \n", packingfraction);
         return 1;
     }
-    else{
-        printf("Packing fraction: %.5f \n", packingfraction);
-    }
+    printf("Packing fraction: %.5f \n", packingfraction);
+
 
     //Read N_connections, N_synapses and file names
-    printf("Enter the number N of connections: "); scanf("%d", &N_connections);
-    printf("Enter the number N of synapses per neuron: "); scanf("%d", &N_synapses);
-    printf("Enter the filename to save neuron data (.dat): "); scanf(" %s", particleFile);
-    printf("Enter the filename to save connection data (.dat): "); scanf(" %s", connectionFile);
+    printf("Enter the number N of connections: ");                  scanf("%d", &N_connections);
+    printf("Enter the number N of synapses per neuron: ");          scanf("%d", &N_synapses);
+    printf("Enter the filename to save neuron data (.dat): ");      scanf(" %s", particleFile);
+    printf("Enter the filename to save connection data (.dat): ");  scanf(" %s", connectionFile);
+
 
     // Allocate memory for the neurons
     Particle *particles = (Particle *)malloc(numParticles * sizeof(Particle));
@@ -75,9 +84,9 @@ int main() {
         return 1;
     }
 
+    // Initialize neuron positions
     if (modo == 'R' || modo == 'r') // Random positioning for the neurons
     {
-        // Initialize neuron positions randomly within the box without overlap
         int placedParticles = 0;
         while (placedParticles < numParticles) 
         {
@@ -85,7 +94,9 @@ int main() {
             newParticle.x = setInside(L_x,radius);
             newParticle.y = setInside(L_y,radius);
             newParticle.radius = radius;
+            newParticle.synapses = 0;
 
+            //Check for overlap with existing neurons
             if (isOverlapping(particles, placedParticles, newParticle)) 
             {
                 particles[placedParticles] = newParticle;
@@ -95,12 +106,11 @@ int main() {
     }
     else if (modo == 'L' || modo == 'l') // Lattice positioning for the neurons
     {
-        // Initialize particle positions within the box without overlap
         int numRows = (int)sqrt(numParticles);
-        int numCols = (numParticles + numRows - 1) / numRows; // This handles cases where numParticles is not a perfect square
+        int numCols = (numParticles + numRows - 1) / numRows; // Handles non-perfect squares
 
-        double dx = (L_x - 2 * radius) / (numCols - 1); // Spacing between particles in the x direction
-        double dy = (L_y - 2 * radius) / (numRows - 1); // Spacing between particles in the y direction
+        double dx = (L_x - 2 * radius) / (numCols - 1);       // Spacing in the x direction
+        double dy = (L_y - 2 * radius) / (numRows - 1);       // Spacing in the y direction
 
         int placedParticles = 0;
         for (int i = 0; i < numRows; ++i) 
@@ -120,19 +130,21 @@ int main() {
     }
     else
     {
-        printf("\n Not a valid mode \n");
-        return 1;
-    }
-
-    // Open the file for writing neuron positions and making titles
-    FILE *particleFilePtr = fopen(particleFile, "w");
-    if (particleFilePtr == NULL) 
-    {
-        fprintf(stderr, "\nFailed to open file for writing\n");
+        fprintf(stderr, "\n Not a valid mode \n");
         free(particles);
         return 1;
     }
-    fprintf(particleFilePtr, "xlabel ylabel radii\n");
+
+
+    // Open the file for writing neuron positions
+    FILE *particleFilePtr = fopen(particleFile, "w");
+    if (particleFilePtr == NULL) 
+    {
+        fprintf(stderr, "\n Failed to open file for writing \n");
+        free(particles);
+        return 1;
+    }
+    fprintf(particleFilePtr, "xlabel ylabel radii \n");
 
     // Write the neuron positions and radii to the file
     for (int i = 0; i < numParticles; ++i)
@@ -142,7 +154,8 @@ int main() {
     // Close the file
     fclose(particleFilePtr);
 
-    // Open the file for writing neuron connections and making titles
+
+    // Open the file for writing neuron connections
     FILE *connectionFilePtr = fopen(connectionFile, "w");
     if (connectionFilePtr == NULL) 
     {
@@ -152,54 +165,71 @@ int main() {
     }
     fprintf(connectionFilePtr, "X1 Y1 X2 Y2\n");
 
-    // Initialize current neuron
+
+    // Create an array of arrays (list of nearby neurons)
+    int **nearbyParticles;
+    int *nearbyCounts;
+    findNearbyParticles(particles, numParticles, &nearbyParticles, &nearbyCounts);
+
+
+    // Initialize the first neuron randomly
     int currentParticle = rand() % numParticles;
-    double maxDistance = sqrt(pow(L_x - 2*radius,2) + pow(L_y - 2*radius,2)); // Maximum possible distance within the box
+    double maxDistance = sqrt(pow(L_x - 2*radius,2) + pow(L_y - 2*radius,2)); // Maximum distance within the box
 
     for (int i = 0; i < N_connections; ++i)
     {
         int nextParticle = -1;
 
-        // Attempt to find a valid next neuron
-        for (int attempt = 0; attempt < numParticles; ++attempt) 
+        // Attempt to find a valid next neuron from nearby neurons
+        for (int attempt = 0; attempt < nearbyCounts[currentParticle]; ++attempt) 
         {
-            int candidateParticle = rand() % numParticles;
+            int candidateParticle = nearbyParticles[currentParticle][rand() % nearbyCounts[currentParticle]];
 
-            // Secures the next neuron can look for a new synapse 
+            // Ensure the candidate has room for new synapses 
             if (candidateParticle != currentParticle 
-                    && particles[candidateParticle].synapses < N_synapses - 1
-                        && particles[currentParticle].synapses < N_synapses) 
+                && particles[candidateParticle].synapses < N_synapses - 1
+                && particles[currentParticle].synapses < N_synapses) 
             {
-                //Reduced probability by intermediate neurons
-                double intDistFactor = 1.0;
-                for(int j = 0; j < numParticles; j++)
-                {
-                    if (j != currentParticle && j != candidateParticle)
-                    {
-                        // Calculate the distance between a neuron and the line connecting a pair of neurons
-                        double interdistance = interDistance(particles[currentParticle], particles[candidateParticle], particles[j]);
+                double intDistFactor = 1.0; // Reduction factor for intermediate neurons
 
-                        if(interdistance < radius)
+                // Loop through common nearby neurons for interdistance calculation
+                for(int j = 0; j < nearbyCounts[currentParticle]; j++)
+                {
+                    int intermediateParticle = nearbyParticles[currentParticle][j];
+
+                    // Check if the neuron is also nearby to the candidate
+                    for(int k = 0; k < nearbyCounts[candidateParticle]; k++)
+                    {
+                        if(intermediateParticle == nearbyParticles[candidateParticle][k]
+                           && intermediateParticle != currentParticle
+                           && intermediateParticle != candidateParticle)
                         {
-                            if (interdistance > 0.5 * radius) 
+                            // Calculate the interdistance
+                            double interdistance = interDistance(particles[currentParticle], particles[candidateParticle], particles[j]);
+
+                            // Adjust the connection probability based on interdistance
+                            if(interdistance < radius)
                             {
-                             intDistFactor *= interdistance / radius; 
-                            }
-                            else if (particles[j].synapses < N_synapses - 1
-                                && Distance(particles[currentParticle], particles[j]) < Distance(particles[currentParticle], particles[candidateParticle])) 
-                            {
-                                // If the neuron intersects completely the axon/dendrite, this neuron is the new candidate
-                                intDistFactor = 1.0;
-                                candidateParticle = j;
+                                if (interdistance > 0.5 * radius) 
+                                {
+                                    intDistFactor *= interdistance / radius; 
+                                }
+                                else if (particles[intermediateParticle].synapses < N_synapses - 1
+                                    && Distance(particles[currentParticle], particles[intermediateParticle]) < Distance(particles[currentParticle], particles[candidateParticle])) 
+                                {
+                                    // The interdistance neuron becomes the new candidate
+                                    candidateParticle = intermediateParticle;
+                                    j = 0, k = 0, intDistFactor = 1.0;
+                                }
                             }
                         }
                     }
                 }
                 
-                // Use probability to decide whether to connect
+
+                // Probability check for connection based on distance
                 double dist = Distance(particles[currentParticle], particles[candidateParticle]);
-                double prob = connectionProbability(dist, maxDistance, intDistFactor);
-                if (((double)rand() / RAND_MAX) < prob)
+                if (connectionProbability(dist, maxDistance, intDistFactor) > (float)rand() / RAND_MAX)
                 { 
                     nextParticle = candidateParticle;
                     break;
@@ -207,35 +237,42 @@ int main() {
             }
         }
 
+
         // If a valid next neuron was found, create a connection
         if (nextParticle != -1)
         {   
             totalDistance += Distance(particles[currentParticle], particles[nextParticle]);
 
-            fprintf(connectionFilePtr, "%lf %lf %lf %lf\n",
-                        particles[currentParticle].x, particles[currentParticle].y, particles[nextParticle].x, particles[nextParticle].y);
-             
+            fprintf(connectionFilePtr, "%lf %lf %lf %lf\n", 
+                    particles[currentParticle].x, particles[currentParticle].y,
+                    particles[nextParticle].x, particles[nextParticle].y);
+                
             // Add a synapse if the connection is made 
             particles[nextParticle].synapses += 1; 
             particles[currentParticle].synapses += 1;
             
             // Move to the next neuron
+            printf("Connection made from: %d\n", currentParticle);
             currentParticle = nextParticle; 
         } 
         else 
         {
-            // If no valid next neuron is found, stop connecting
+            // If no valid next neuron is found, try again
             fprintf(stderr, "No valid connection found from particle %d\n", currentParticle);
+            fprintf(stderr, "Synapsis current: %d\n", particles[currentParticle].synapses);
             N_connections += 1;
         }
     }
 
-    // Print the end-to-end distance to the file and close the file
+    // Print the end-to-end distance and close the file
     fprintf(connectionFilePtr, "  \n \n Total Distance: %.2lf \n", totalDistance); fclose(connectionFilePtr);
 
-    // Free the allocated memory
+    // Free allocated memory
     free(particles);
+    freeNearbyParticles(nearbyParticles, numParticles, nearbyCounts);
+
     printf("Neuron data saved to %s and connection data saved to %s\n", particleFile, connectionFile);
+
 
     return 0;
 }
@@ -244,33 +281,47 @@ int main() {
     ||  FUNCTIONS   ||  
     +================+  */
 
-/*  +-----------------------------------------------------------------------------------------+  
-    |       FUNCTION TO CALCULATE THE PACKING FRACTION                                        |
-    |                                                                                         |
-    | The packing fraction is a measure of density in a given space. Its the fraction of the  |
-    | volume (or area in 2D) of the space that is occupied by the objects.                    |
-    +-----------------------------------------------------------------------------------------+  */ 
+/*  +-------------------------------------------------------------------------------------+  
+    | @brief Computes the packing fraction based on the number of neurons, box dimensions |
+    |        and neuron radius.                                                           |
+    |                                                                                     |
+    | @param numParticles The total number of particles.                                  |          
+    | @param L_x          The width of the box.                                           |
+    | @param L_y          The height of the box.                                          |
+    | @param radius       The radius of each particle.                                    |
+    |                                                                                     |
+    | @return The packing fraction, which is the ratio of the total area occupied by the  |
+    |         neurons to the area of the box.                                             |
+    +-------------------------------------------------------------------------------------+  */ 
 double packingFraction(int numParticles, double L_x, double L_y, double radius)
 {
     return (numParticles * PI * pow(radius, 2)) / (L_x * L_y);
 }
 
-/*  +--------------------------------------------------------------------------------------------+  
-    |       FUNCTION TO CALCULATE THE DISTANCE BETWEEN TWO POINTS                                |
-    |                                                                                            |
-    | Takes (x1 , y1) form particle 1 and (x2 , y2) from particle 2 and calculates its distance. |
-    +--------------------------------------------------------------------------------------------+  */ 
+
+/*  +-------------------------------------------------------------+  
+    | @brief Computes the Euclidean distance between two neurons. |
+    |                                                             |
+    | @param p1 The first neuron.                                 |          
+    | @param p2 The second neuron.                                |
+    |                                                             |
+    | @return The Euclidean distance between two neurons.         |
+    +-------------------------------------------------------------+  */  
 double Distance(Particle p1, Particle p2)
 {
     return sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2));
 }
 
-/*  +-----------------------------------------------------------------------------------------------+  
-    |       FUNCTION TO CHECK IF A NEURON OVERLAPS WITH ANY EXISTING NEURON                         |
-    |                                                                                               |
-    | For a new particle selected, checks for overlaps with any of the already numParticles placed. |
-    | If the distance between them is less than the sum of its radii, they overlap (True = 0).      |
-    +-----------------------------------------------------------------------------------------------+  */ 
+
+/*  +-------------------------------------------------------------------------+  
+    | @brief Checks if a new neuron overlaps with any of the existing neurons |
+    |                                                                         |
+    | @param particles    Array of existing particles.                        |          
+    | @param numParticles The number of existing particles.                   |
+    | @param newParticle  The new particle to check for overlap.              |
+    |                                                                         |
+    | @return True (0) if there is no overlap, false (1) if there is overlap. |
+    +-------------------------------------------------------------------------+  */ 
 int isOverlapping(Particle *particles, int numParticles, Particle newParticle)
 {
     for (int i = 0; i < numParticles; ++i) {
@@ -281,25 +332,33 @@ int isOverlapping(Particle *particles, int numParticles, Particle newParticle)
     return 1;
 }
 
-/*  +-----------------------------------------------------------------------------------------------+
-    |       FUNCTION TO SET RANDOM NEURONS WITHOUT OVERLAPING WITHIN THE WALLS                      | 
-    |                                                                                               |
-    | Takes the range values (maximum and minimum) and generates random points within those values. |
-    +-----------------------------------------------------------------------------------------------+   */
+
+/*  +-----------------------------------------------------------------------+  
+    | @brief Generates a random position inside the specified boundaries.   |
+    |                                                                       |
+    | @param max The upper limit of the box (either width or height).       |          
+    | @param min The lower limit for valid placement, typically the radius. |
+    |                                                                       |
+    | @return A random position within the bounds [min, max - min].         |
+    +-----------------------------------------------------------------------+  */ 
 float setInside(float max, float min)
 {
     float scale = ((float)rand() / RAND_MAX); // Generate a random float between 0 and 1
     return min + scale * (max - 2 * min); // Scale and shift the value to the desired range
 }
 
-/*  +--------------------------------------------------------------------------------------------------+
-    |       FUNCTION TO DETERMINE CONNECTION PROBABILITY BASED ON DISTANCE                             |
-    |                                                                                                  |
-    | Takes the distance between the current neuron and the candidate neuron, the maximum distance     |
-    | possible within the walls and a reduction factor by intermediate intersecting neurons.           |
-    | The maximum probability is 1 and the minimum is 0, reduced by distance and intermediate neurons. |
-    | The reduced connection probability is modulated by a decayFactor.                                |
-    +--------------------------------------------------------------------------------------------------+  */
+
+/*  +--------------------------------------------------------------------------------+  
+    | @brief Calculates the probability of forming a connection                      |
+    |        between two neurons based on distance.                                  |
+    |                                                                                |
+    | @param dist          The distance between the two neurons.                     |          
+    | @param maxDistance   The maximum possible distance in the box.                 |
+    | @param intDistFactor A factor based on intermediate distances between neurons. |
+    |                                                                                |
+    | @return A probability value between 0 and 1, where larger distances            |
+    |         reduces the probability of a connection.                               |
+    +--------------------------------------------------------------------------------+  */ 
 double connectionProbability(double dist, double maxDistance, double intDistFactor)
 {
     if (dist >= maxDistance) 
@@ -309,12 +368,16 @@ double connectionProbability(double dist, double maxDistance, double intDistFact
     return (1 - dist/maxDistance) * exp(- DECAYFACTOR * (dist/maxDistance)) * intDistFactor;
 }
 
-/*  +---------------------------------------------------------------------------------------------------------+
-    |       FUNCTION TO CALCULATE THE DISTANCE FROM A NEURON TO THE LINE SEGMENT CONNECTING TWO OTHER NEURONS |
-    | Takes the curren (p1), candidate (p2) and any other neuron (p3) placed.                                 |
-    | Calculates first the distance between p1 and p2 to avoid floating-point issues (division by 0).         |
-    | If p1 and p2 are essentially the same point, return distance to p1. Else, do the calculation.           | 
-    +---------------------------------------------------------------------------------------------------------+  */
+
+/*  +-----------------------------------------------------------------+  
+    | @brief Computes the interdistance between three neurons.        |
+    |                                                                 |
+    | @param p1 The first neuron, it connects to the second one.      |          
+    | @param p2 The second neuron, it connects to the first one.      |
+    | @param p3 The third neuron.                                     |
+    |                                                                 |
+    | @return The calculated interdistance between the three neurons. |
+    +-----------------------------------------------------------------+  */ 
 double interDistance(Particle p1, Particle p2, Particle p3)
 {
     double lineLength = Distance(p1 , p2);
@@ -325,3 +388,55 @@ double interDistance(Particle p1, Particle p2, Particle p3)
     }
     return fabs((p2.y - p1.y) * p3.x - (p2.x - p1.x) * p3.y + p2.x * p1.y - p2.y * p1.x) / lineLength;
 }
+
+
+/*  +-----------------------------------------------------------------------------------------+  
+    | @brief Generates a list of nearby neurons for each neuron, based on a threshold radius. |
+    |                                                                                         |
+    | @param particles       Array of particles.                                              |               
+    | @param numParticles    The total number of particles.                                   | 
+    | @param nearbyParticles A pointer to an array of lists,                                  | 
+    |                        each containing the indices of nearby neurons for each neuron.   |
+    | @param nearbyCounts    A pointer to an array storing the number of nearby particles     |
+    |                        for each particle.                                               |
+    +-----------------------------------------------------------------------------------------+  */ 
+void findNearbyParticles(Particle *particles, int numParticles, int ***nearbyParticles, int **nearbyCounts) {
+    // Allocate memory for nearby particles list and counts
+    *nearbyParticles = (int **)malloc(numParticles * sizeof(int *));
+    *nearbyCounts = (int *)malloc(numParticles * sizeof(int));
+
+    for (int i = 0; i < numParticles; ++i) {
+        (*nearbyCounts)[i] = 0;
+        (*nearbyParticles)[i] = (int *)malloc(numParticles * sizeof(int)); // allocate max size initially
+    }
+
+    // Populate nearby particles list for each particle
+    for (int i = 0; i < numParticles; ++i) {
+        for (int j = 0; j < numParticles; ++j) {
+            if (i != j) {
+                double dist = Distance(particles[i], particles[j]);
+                if (dist <= THRESHOLD_RADIUS) {
+                    (*nearbyParticles)[i][(*nearbyCounts)[i]] = j; // Store index of nearby particle
+                    (*nearbyCounts)[i]++;
+                }
+            }
+        }
+    }
+}
+
+
+/*  +-------------------------------------------------------------------------------------------+  
+    | @brief Frees the memory allocated for the nearby particles lists.                         |
+    |                                                                                           |
+    | @param nearbyParticles The list of nearby particles for each particle.                    |                                |               
+    | @param numParticles    The total number of particles.                                     | 
+    | @param nearbyCounts    The array storing the count of nearby particles for each particle. |                       |
+    +-----------------------------------------------------------------------------------------+  */ 
+void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCounts) {
+    for (int i = 0; i < numParticles; ++i) {
+        free(nearbyParticles[i]);
+    }
+    free(nearbyParticles);
+    free(nearbyCounts);
+}
+
