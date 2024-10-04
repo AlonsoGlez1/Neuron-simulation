@@ -8,8 +8,8 @@
     || Define macros ||  
     +=================+  */
 #define PI 3.141592654          // Constant for the value of pi
-#define DECAYFACTOR 20.0        // Factor for the exponential decay in connection probability
-#define THRESHOLD_RADIUS 20.0   // Radius within which to consider nearby particles
+#define DECAYFACTOR 25.0        // Factor for the exponential decay in connection probability
+#define THRESHOLD_RADIUS 15.0   // Radius within which to consider nearby particles
 #define PACKING_FRACTION 0.68   // Packing fraction of the system (area occupied / total area)
 
 /*  +===============================================+
@@ -27,10 +27,11 @@ typedef struct
 /*  +==========================+
     ||  FUNCTION PROTOTYPES   ||  
     +==========================+  */
-double packingFraction(int numParticles, double L_x, double L_y, double radius);
+void packingFraction(int numParticles, double L_x, double L_y, double radius);
 double Distance(Particle p1, Particle p2);
 int isOverlapping(Particle *particles, int numParticles, Particle newParticle);
 float setInside(float max, float min);
+int isCloser(Particle p1, Particle p2, Particle p3);
 double connectionProbability(double dist, double maxDistance, double intDistFactor);
 double interDistance(Particle p1, Particle p2, Particle p3);
 void findNearbyParticles(Particle *particles, int numParticles, int ***nearbyParticles, int **nearbyCounts);
@@ -41,9 +42,9 @@ void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCou
     ||  MAIN FUNCTION   ||  
     +====================+  */
 int main() {
-    int numParticles, N_connections, N_synapses;                // Number of particles, connections and synapses
-    double L_x, L_y, radius, totalDistance, packingfraction;    //Dimensions and variables
-    char modo, particleFile[100], connectionFile[100];          // Mode (random|lattice) and filenames
+    int numParticles, N_connections, N_synapses;          // Number of particles, connections and synapses
+    double L_x, L_y, radius, totalDistance;               // Physical dimensions
+    char modo, particleFile[100], connectionFile[100];    // Mode (random|lattice) and filenames
 
 
     // Seed the random number generator
@@ -59,13 +60,7 @@ int main() {
 
 
     // Check the packing fraction, if too dense, it cannot locate all neurons
-    packingfraction = packingFraction(numParticles, L_x, L_y, radius);
-    if (packingfraction >= PACKING_FRACTION)
-    {
-        printf("Packing fraction: %.5f is too dense. \n", packingfraction);
-        return 1;
-    }
-    printf("Packing fraction: %.5f \n", packingfraction);
+    packingFraction(numParticles, L_x, L_y, radius);
 
 
     //Read N_connections, N_synapses and file names
@@ -210,12 +205,12 @@ int main() {
                             // Adjust the connection probability based on interdistance
                             if(interdistance < radius)
                             {
-                                if (interdistance > 0.5 * radius) 
+                                if (interdistance >= 0.5 * radius) 
                                 {
                                     intDistFactor *= interdistance / radius; 
                                 }
                                 else if (particles[intermediateParticle].synapses < N_synapses - 1
-                                    && Distance(particles[currentParticle], particles[intermediateParticle]) < Distance(particles[currentParticle], particles[candidateParticle])) 
+                                    && isCloser(particles[currentParticle], particles[intermediateParticle], particles[candidateParticle])) 
                                 {
                                     // The interdistance neuron becomes the new candidate
                                     candidateParticle = intermediateParticle;
@@ -290,12 +285,17 @@ int main() {
     | @param L_y          The height of the box.                                          |
     | @param radius       The radius of each particle.                                    |
     |                                                                                     |
-    | @return The packing fraction, which is the ratio of the total area occupied by the  |
-    |         neurons to the area of the box.                                             |
+    | If the packing fraction is too big, the program ends.                               |
     +-------------------------------------------------------------------------------------+  */ 
-double packingFraction(int numParticles, double L_x, double L_y, double radius)
+void packingFraction(int numParticles, double L_x, double L_y, double radius)
 {
-    return (numParticles * PI * pow(radius, 2)) / (L_x * L_y);
+    double packingfraction = (numParticles * PI * pow(radius, 2)) / (L_x * L_y);
+    if (packingfraction >= PACKING_FRACTION)
+    {
+        printf("Packing fraction: %.5f is too dense. \n", packingfraction);
+        exit(EXIT_FAILURE);
+    }
+    printf("Packing fraction: %.5f \n", packingfraction);
 }
 
 
@@ -313,6 +313,23 @@ double Distance(Particle p1, Particle p2)
 }
 
 
+/*  +------------------------------------------------------------------------+  
+    | @brief Computes and compares the distance between two sets of neurons. |
+    |                                                                        |
+    | @param p1 The current neuron.                                          |   
+    | @param p2 A possible intermediate neuron.                              |
+    | @param p3 The current candidate neuron.                                |
+    |                                                                        |
+    | @returns True (0) if p3 is closer to p1 than p3, else False (1)        |
+    +------------------------------------------------------------------------+  */ 
+int isCloser(Particle p1, Particle p2, Particle p3)
+{
+    if (Distance(p1, p2) < Distance(p1, p3));
+    {
+        return 0;
+    }
+    return 1;
+}
 /*  +-------------------------------------------------------------------------+  
     | @brief Checks if a new neuron overlaps with any of the existing neurons |
     |                                                                         |
