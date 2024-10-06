@@ -4,8 +4,8 @@ set output '500.gif'
 
 # Set the plot range and ratio
 set size square
-set xrange [0:60]
-set yrange [0:60]
+set xrange [0:50]
+set yrange [0:50]
 
 # Set up the plot style
 set style data lines
