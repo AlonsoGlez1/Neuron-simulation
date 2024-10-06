@@ -1,11 +1,11 @@
 # Set the output format and file name
-set terminal gif animate size 800,800 delay 100
+set terminal gif animate size 1200,1200 delay 100
 set output '500.gif'
 
 # Set the plot range and ratio
 set size square
-set xrange [0:50]
-set yrange [0:50]
+set xrange [0:60]
+set yrange [0:60]
 
 # Set up the plot style
 set style data lines
