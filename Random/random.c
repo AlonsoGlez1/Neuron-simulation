@@ -4,23 +4,25 @@
 #include <time.h>
 #include <math.h>
 
+
 /*  +=========================================================================================================+
     ||                                          DEFINE MACROS                                                ||
     +=========================================================================================================+  */
+
 #define PI 3.141592654          // Constant for the value of pi
 #define DECAYFACTOR 20.0        // Factor for the exponential decay in connection probability
 #define THRESHOLD_RADIUS 20.0   // Radius within consider nearby particles
 #define PACKING_FRACTION 0.5    // Packing fraction of the system (area occupied / total area)
 #define INT_DIST_POWER 2        // Power of the factor of interdistance neurons reduction of probability
-#define TRUE 1
-#define FALSE 0
+#define TRUE 1			// Boolean expression for True
+#define FALSE 0			// Boolean expression for False
 
 
 /*  +=========================================================================================================+
     ||                                DEFINE A STRUCTURE TO REPRESENT A NEURON                               ||
     +=========================================================================================================+  */
 
-typedef struct 
+typedef struct
 {
     double x;       // x-coordinate of the neuron
     double y;       // y-coordinate of the neuron
@@ -51,20 +53,21 @@ void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCou
     +=========================================================================================================+  */
 
 int main() {
-    int numParticles, timeSteps, N_synapses;              // Number of particles, timeSteps for connections and synapses
-    double L_x, L_y, radius, totalDistance;               // Physical dimensions
-    char modo, particleFile[100], connectionFile[100];    // Mode (random|lattice) and filenames
+    int numParticles, timeSteps, N_synapses;                      // Number of particles, timeSteps for connections and synapses
+    double L_x, L_y, radius, totalDistance, end_to_end_Distance;  // Physical dimensions
+    char modo, particleFile[100], connectionFile[100];            // Mode (random|lattice) and filenames
 
 
     // Seed the random number generator
     srand(time(NULL));
 
     // Read the number of neurons, the dimensions of the box and neuron radii
-    printf("Random or Lattice mode (R/L): ");       scanf("%c", &modo);
+    printf("Random or Lattice mode (R/L): ");       scanf(" %c", &modo);
     printf("Enter the number of neurons: ");        scanf("%d", &numParticles);
     printf("Enter the width (L_x) of the box: ");   scanf("%lf", &L_x);
     printf("Enter the height (L_y) of the box: ");  scanf("%lf", &L_y);
     printf("Enter the radius of the neurons: ");    scanf("%lf", &radius);
+
 
     // Check the packing fraction, if it's too dense, it cannot allocate all the neurons
     packingFraction(numParticles, L_x, L_y, radius);
@@ -100,7 +103,7 @@ int main() {
     }
     else
     {
-        fprintf(stderr, "\n Not a valid mode \n");
+        fprintf(stderr, "\nNot a valid mode\n");
         free(particles);
         return EXIT_FAILURE;
     }
@@ -110,11 +113,11 @@ int main() {
     FILE *particleFilePtr = fopen(particleFile, "w");
     if (particleFilePtr == NULL)
     {
-        fprintf(stderr, "\n Failed to open file for writing \n");
+        fprintf(stderr, "\nFailed to open file for writing\n");
         free(particles);
         return EXIT_FAILURE;
     }
-    fprintf(particleFilePtr, "xlabel ylabel radii \n");
+    fprintf(particleFilePtr, "Xlabel Ylabel radii\n");
 
     // Write the neuron positions and radii to the file
     for (int i = 0; i < numParticles; ++i)
@@ -146,10 +149,11 @@ int main() {
     findNearbyParticles(particles, numParticles, &nearbyParticles, &nearbyCounts);
 
 
-    int currentParticle = rand() % (numParticles + 1);                        // Initialize randomly the first neuron
-    double maxDistance = sqrt(pow(L_x - 2*radius,2) + pow(L_y - 2*radius,2)); // Maximum distance within the box
-    int failedConnectionAttempt = 0;                                          // Counter of failed connection attempts
-
+    int currentParticle = rand() % (numParticles + 1);  // Initialize randomly the first neuron
+    int initialParticle = currentParticle;              //Save the very first particle chosen
+    double maxDistance = THRESHOLD_RADIUS;              // Maximum distance possible
+    int failedConnectionAttempt = 0;                    // Counter of failed connection attempts
+//  double maxDistance = sqrt(pow((L_x - 2 * radius), 2) + pow((L_y - 2 * radius), 2)); // Maximum distance within the box
 
     // Start connection attempts
     for (int i = 0; i < timeSteps; ++i)
@@ -218,8 +222,10 @@ int main() {
         // If a valid next neuron was found, create a connection
         if (nextParticle != -1)
         {
+	    // Calculate the total distance through the connections
             totalDistance += Distance(particles[currentParticle], particles[nextParticle]);
 
+            // Write the neuron connections
             fprintf(connectionFilePtr, "%lf %lf %lf %lf\n",
                     particles[currentParticle].x, particles[currentParticle].y,
                     particles[nextParticle].x, particles[nextParticle].y);
@@ -229,7 +235,7 @@ int main() {
             particles[currentParticle].synapses += 1;
 
             // Move to the next neuron
-            printf("Connection made from: %d\n", currentParticle);
+            fprintf(stdout, "Connection made from: %d\n", currentParticle);
             currentParticle = nextParticle;
         }
         else
@@ -238,9 +244,18 @@ int main() {
             fprintf(stderr, "No valid connection found from particle %d\n", currentParticle);
             failedConnectionAttempt += 1;
         }
+
+        // When reaching the last time step, calculate the end-to-end distance
+        if (i + 1 == timeSteps)
+        {
+            end_to_end_Distance = Distance(particles[initialParticle], particles[currentParticle]);
+        }
     }
-    // Print the end-to-end distance and close the file
-    fprintf(connectionFilePtr, "  \n \n Total Distance: %.2lf \n", totalDistance); fclose(connectionFilePtr);
+
+    // Print the end-to-end distance, total distance and close the file
+    fprintf(connectionFilePtr, "\n\nEnd-to-end Total\n");
+    fprintf(connectionFilePtr, "%lf %lf \n", end_to_end_Distance, totalDistance);
+    fclose(connectionFilePtr);
 
     // Free allocated memory
     free(particles);
@@ -273,10 +288,10 @@ void packingFraction(int numParticles, double L_x, double L_y, double radius)
     double packingfraction = (numParticles * PI * pow(radius, 2)) / (L_x * L_y);
     if (packingfraction >= PACKING_FRACTION)
     {
-        printf("Packing fraction: %.5f is too dense. \n", packingfraction);
+        fprintf(stderr, "Packing fraction: %.5f is too dense.\n", packingfraction);
         exit(EXIT_FAILURE);
     }
-    printf("Packing fraction: %.5f \n", packingfraction);
+    fprintf(stdout, "Packing fraction: %.5f\n", packingfraction);
 }
 
 
@@ -293,7 +308,7 @@ void packingFraction(int numParticles, double L_x, double L_y, double radius)
 void placeRandom(int numParticles, double L_x, double L_y, double radius, Particle *particles)
 {
     int placedParticles = 0;
-        while (placedParticles < numParticles) 
+        while (placedParticles < numParticles)
         {
             Particle newParticle;
             newParticle.x = setInside(L_x,radius);
@@ -302,7 +317,7 @@ void placeRandom(int numParticles, double L_x, double L_y, double radius, Partic
             newParticle.synapses = 0;
 
             //Check for overlap with existing neurons
-            if (!isOverlapping(particles, placedParticles, newParticle)) 
+            if (!isOverlapping(particles, placedParticles, newParticle))
             {
                 particles[placedParticles] = newParticle;
                 placedParticles++;
@@ -474,17 +489,21 @@ void findNearbyParticles(Particle *particles, int numParticles, int ***nearbyPar
     *nearbyParticles = (int **)malloc(numParticles * sizeof(int *));
     *nearbyCounts = (int *)malloc(numParticles * sizeof(int));
 
-    for (int i = 0; i < numParticles; ++i) {
+    for (int i = 0; i < numParticles; ++i)
+    {
         (*nearbyCounts)[i] = 0;
         (*nearbyParticles)[i] = (int *)malloc(numParticles * sizeof(int)); // allocate max size initially
     }
 
     // Populate nearby particles list for each particle
-    for (int i = 0; i < numParticles; ++i) {
-        for (int j = 0; j < numParticles; ++j) {
-            if (i != j) {
-                double dist = Distance(particles[i], particles[j]);
-                if (dist <= THRESHOLD_RADIUS) {
+    for (int i = 0; i < numParticles; ++i)
+    {
+        for (int j = 0; j < numParticles; ++j)
+        {
+            if (i != j)
+            {
+                if (Distance(particles[i], particles[j]) <= THRESHOLD_RADIUS)
+                {
                     (*nearbyParticles)[i][(*nearbyCounts)[i]] = j; // Store index of nearby particle
                     (*nearbyCounts)[i]++;
                 }
@@ -502,8 +521,10 @@ void findNearbyParticles(Particle *particles, int numParticles, int ***nearbyPar
 * @param numParticles    The total number of particles.
 * @param nearbyCounts    The array storing the count of nearby particles for each particle.
 **************************************************************************************************************/
-void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCounts) {
-    for (int i = 0; i < numParticles; ++i) {
+void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCounts)
+{
+    for (int i = 0; i < numParticles; ++i)
+    {
         free(nearbyParticles[i]);
     }
     free(nearbyParticles);
