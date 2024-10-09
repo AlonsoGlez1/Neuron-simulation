@@ -222,7 +222,7 @@ int main() {
         // If a valid next neuron was found, create a connection
         if (nextParticle != -1)
         {
-	    // Calculate the total distance through the connections
+	        // Calculate the total distance through the connections
             totalDistance += Distance(particles[currentParticle], particles[nextParticle]);
 
             // Write the neuron connections
@@ -243,7 +243,11 @@ int main() {
             // If no valid connection is found, save the number of attempts and try again
             fprintf(stderr, "No valid connection found from particle %d\n", currentParticle);
             failedConnectionAttempt += 1;
+            
+            // Print space to the file to not make a connection in the timeStep for the gif animation
+            fprintf(connectionFilePtr, "0 0\n");
         }
+
 
         // When reaching the last time step, calculate the end-to-end distance
         if (i + 1 == timeSteps)
