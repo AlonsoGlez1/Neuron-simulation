@@ -12,14 +12,19 @@ set style data lines
 set style line 1 lc rgb 'black' pt 10 ps 1.5
 set style line 2 lc rgb 'black' lt 1 lw 2
 
-# Plot circles once
-plot 'neurons' skip 1 using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
+# Plot all neurons by themselves
+plot 'neurons' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
 
-# Loop through the lines
+# Loop through the connections and plot them 
 do for [i=1:50] {
-    # Replot circles to keep them in the plot
-    plot 'neurons' skip 1 using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle, 'connections' index 0 every ::1::i with lines ls 2 notitle
-
+    # Replot neurons to keep them in the plot and changing the connected neurons colors
+    plot 'neurons' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle, \
+         'connections' index 0 using 1:2:3 every ::1::i with circles lc rgb "red" fill solid 0.5 notitle, \
+         'connections' index 0 every ::1::i with lines ls 2 notitle, \
+	 'connections' index 1 using 1:2:3 every ::1::i with circles lc rgb "green" fill solid 0.5 notitle, \
+	 'connections' index 1 every ::1::i with lines ls 2 notitle, \
+	 'connections' index 0 using 1:2:3 every ::1::1 with circles lc rgb "black" fill solid 1 notitle
     # Pause to create frames for the GIF
     pause 0.05
 }
+

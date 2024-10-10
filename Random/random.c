@@ -14,8 +14,9 @@
 #define THRESHOLD_RADIUS 20.0   // Radius within consider nearby particles
 #define PACKING_FRACTION 0.5    // Packing fraction of the system (area occupied / total area)
 #define INT_DIST_POWER 2        // Power of the factor of interdistance neurons reduction of probability
-#define TRUE 1			// Boolean expression for True
-#define FALSE 0			// Boolean expression for False
+#define TRUE 1			        // Boolean expression for True
+#define FALSE 0			        // Boolean expression for False
+#define BRANCHES 2              // How many branches can a single initial neuron spread through
 
 
 /*  +=========================================================================================================+
@@ -85,7 +86,6 @@ int main() {
     if (particles == NULL)
     {
         fprintf(stderr, "Memory allocation failed\n");
-        free(particles);
         return EXIT_FAILURE;
     }
 
@@ -117,14 +117,13 @@ int main() {
         free(particles);
         return EXIT_FAILURE;
     }
-    fprintf(particleFilePtr, "Xlabel Ylabel radii\n");
 
-    // Write the neuron positions and radii to the file
+    // Write the neuron positions and radii to the file    
+    fprintf(particleFilePtr, "'Xlabel Ylabel Radius'\n");
     for (int i = 0; i < numParticles; ++i)
     {
         fprintf(particleFilePtr, "%lf %lf %lf\n", particles[i].x, particles[i].y, particles[i].radius);
     }
-    // Close the file
     fclose(particleFilePtr);
 
 
@@ -140,7 +139,6 @@ int main() {
         free(particles);
         return 1;
     }
-    fprintf(connectionFilePtr, "X1 Y1 X2 Y2\n");
 
 
     // Create an array of arrays (list of nearby neurons)
@@ -149,116 +147,125 @@ int main() {
     findNearbyParticles(particles, numParticles, &nearbyParticles, &nearbyCounts);
 
 
-    int currentParticle = rand() % (numParticles + 1);  // Initialize randomly the first neuron
-    int initialParticle = currentParticle;              //Save the very first particle chosen
+    int initialParticle = rand() % (numParticles + 1);  // Initialize randomly the first neuron
     double maxDistance = THRESHOLD_RADIUS;              // Maximum distance possible
     int failedConnectionAttempt = 0;                    // Counter of failed connection attempts
-//  double maxDistance = sqrt(pow((L_x - 2 * radius), 2) + pow((L_y - 2 * radius), 2)); // Maximum distance within the box
 
-    // Start connection attempts
-    for (int i = 0; i < timeSteps; ++i)
+    for(int branch = 0; branch < BRANCHES; branch++)
     {
-        int nextParticle = -1;
+        // Get the same first neuron at the beginning of each branching
+        int currentParticle = initialParticle;
 
-        // Attempt to find a next valid neuron from nearby neurons list
-        for (int attempt = 0; attempt < nearbyCounts[currentParticle]; ++attempt)
+        // Print the initial neuron in the connection file
+        fprintf(connectionFilePtr, "'X Y Radius'\n");
+        fprintf(connectionFilePtr, "%lf %lf %lf\n", particles[initialParticle].x, particles[initialParticle].y, particles[initialParticle].radius);
+
+        // Start connection attempts
+        for (int i = 0; i < timeSteps; ++i)
         {
-            int candidateParticle = nearbyParticles[currentParticle][rand() % (nearbyCounts[currentParticle] + 1)];
+            int nextParticle = -1;
 
-            // Ensure the candidate has room for more synapses
-            if (particles[candidateParticle].synapses < N_synapses - 1
-                && particles[currentParticle].synapses < N_synapses)
+            // Attempt to find a next valid neuron from nearby neurons list
+            for (int attempt = 0; attempt < nearbyCounts[currentParticle]; ++attempt)
             {
-                double intDistFactor = 1.0; // Reduction factor by intermediate neurons
+                int candidateParticle = nearbyParticles[currentParticle][rand() % (nearbyCounts[currentParticle] + 1)];
 
-                // Loop through common nearby neurons for interdistance calculation
-                for(int j = 0; j < nearbyCounts[currentParticle]; j++)
+                // Ensure the candidate has room for more synapses AND TEMPORAL: NOT RECONNECT TO THE INITIAL PARTICLE 
+                if (candidateParticle != initialParticle
+                    && particles[candidateParticle].synapses < N_synapses - 1
+                    && particles[currentParticle].synapses < N_synapses)
                 {
-                    int intermediateParticle = nearbyParticles[currentParticle][j];
+                    double intDistFactor = 1.0; // Reduction factor by intermediate neurons
 
-                    // Check if the neuron is also nearby to the candidate
-                    for(int k = 0; k < nearbyCounts[candidateParticle]; k++)
+                    // Loop through common nearby neurons for interdistance calculation
+                    for(int j = 0; j < nearbyCounts[currentParticle]; j++)
                     {
-                        if(intermediateParticle == nearbyParticles[candidateParticle][k]
-                           && intermediateParticle != currentParticle)
-                        {
-                            // Calculate the interdistance
-                            double interdistance = interDistance(particles[currentParticle], particles[candidateParticle], particles[j]);
+                        int intermediateParticle = nearbyParticles[currentParticle][j];
 
-                            // Adjust the connection probability based on intermediate particles
-                            if(interdistance < radius
-                               && isBetween(particles[currentParticle], particles[intermediateParticle], particles[candidateParticle]))
+                        // Check if the neuron is also nearby to the candidate
+                        for(int k = 0; k < nearbyCounts[candidateParticle]; k++)
+                        {
+                            if(intermediateParticle == nearbyParticles[candidateParticle][k]
+                            && intermediateParticle != currentParticle)
                             {
-                                if (interdistance <= (0.5 * radius)
-                                    && particles[intermediateParticle].synapses < N_synapses - 1)
+                                // Calculate the interdistance
+                                double interdistance = interDistance(particles[currentParticle], particles[candidateParticle], particles[j]);
+
+                                // Adjust the connection probability based on intermediate particles
+                                if(interdistance < radius
+                                && isBetween(particles[currentParticle], particles[intermediateParticle], particles[candidateParticle]))
                                 {
-                                    // The intermediate neuron becomes the new candidate
-                                    candidateParticle = intermediateParticle;
-                                    intDistFactor = 1.0;
-                                    j = 0;
-                                    k = 0;
-                                }
-                                else
-                                {
-                                    intDistFactor *= pow(interdistance / radius , INT_DIST_POWER);
+                                    if (interdistance <= (0.5 * radius)
+                                        && particles[intermediateParticle].synapses < N_synapses - 1)
+                                    {
+                                        // The intermediate neuron becomes the new candidate
+                                        candidateParticle = intermediateParticle;
+                                        intDistFactor = 1.0;
+                                        j = 0;
+                                        k = 0;
+                                    }
+                                    else
+                                    {
+                                        intDistFactor *= pow(interdistance / radius , INT_DIST_POWER);
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
 
-                // Probability check for connection based on distance
-                double dist = Distance(particles[currentParticle], particles[candidateParticle]);
-                if (connectionProbability(dist, maxDistance, intDistFactor) > (float)rand() / RAND_MAX)
-                {
-                    nextParticle = candidateParticle;
-                    break;
+                    // Probability check for connection based on distance
+                    double dist = Distance(particles[currentParticle], particles[candidateParticle]);
+                    if (connectionProbability(dist, maxDistance, intDistFactor) > (float)rand() / RAND_MAX)
+                    {
+                        nextParticle = candidateParticle;
+                        break;
+                    }
                 }
+            }
+
+
+            // If a valid next neuron was found, create a connection
+            if (nextParticle != -1)
+            {
+                // Calculate the total distance through the connections
+                totalDistance += Distance(particles[currentParticle], particles[nextParticle]);
+
+                // Write the connected neuron
+                fprintf(connectionFilePtr, "%lf %lf %lf\n", particles[nextParticle].x, particles[nextParticle].y, particles[nextParticle].radius);
+
+                // Add a synapse if the connection is made
+                particles[nextParticle].synapses += 1;
+                particles[currentParticle].synapses += 1;
+
+                // Move to the next neuron
+                fprintf(stdout, "Connection made from: %d\n", currentParticle);
+                currentParticle = nextParticle;
+            }
+            else
+            {
+                // If no valid connection is found, save the number of attempts and try again
+                fprintf(stderr, "No valid connection found from particle %d\n", currentParticle);
+                failedConnectionAttempt += 1;
+
+                // Print space to the file to not make a new connection in the timeStep for the gif animation
+                fprintf(connectionFilePtr, "%lf %lf %lf\n", particles[currentParticle].x, particles[currentParticle].y, particles[currentParticle].radius);
+            }
+
+
+            // When reaching the last time step, calculate the end-to-end distance
+            if (i + 1 == timeSteps)
+            {
+                end_to_end_Distance = Distance(particles[initialParticle], particles[currentParticle]);
             }
         }
 
-
-        // If a valid next neuron was found, create a connection
-        if (nextParticle != -1)
-        {
-	        // Calculate the total distance through the connections
-            totalDistance += Distance(particles[currentParticle], particles[nextParticle]);
-
-            // Write the neuron connections
-            fprintf(connectionFilePtr, "%lf %lf %lf %lf\n",
-                    particles[currentParticle].x, particles[currentParticle].y,
-                    particles[nextParticle].x, particles[nextParticle].y);
-
-            // Add a synapse if the connection is made
-            particles[nextParticle].synapses += 1;
-            particles[currentParticle].synapses += 1;
-
-            // Move to the next neuron
-            fprintf(stdout, "Connection made from: %d\n", currentParticle);
-            currentParticle = nextParticle;
-        }
-        else
-        {
-            // If no valid connection is found, save the number of attempts and try again
-            fprintf(stderr, "No valid connection found from particle %d\n", currentParticle);
-            failedConnectionAttempt += 1;
-            
-            // Print space to the file to not make a connection in the timeStep for the gif animation
-            fprintf(connectionFilePtr, "0 0\n");
-        }
-
-
-        // When reaching the last time step, calculate the end-to-end distance
-        if (i + 1 == timeSteps)
-        {
-            end_to_end_Distance = Distance(particles[initialParticle], particles[currentParticle]);
-        }
+        // Print the end-to-end distance and total distance
+        fprintf(connectionFilePtr, "\n\nEnd-to-end Total\n");
+        fprintf(connectionFilePtr, "%lf %lf\n\n", end_to_end_Distance, totalDistance);
     }
-
-    // Print the end-to-end distance, total distance and close the file
-    fprintf(connectionFilePtr, "\n\nEnd-to-end Total\n");
-    fprintf(connectionFilePtr, "%lf %lf \n", end_to_end_Distance, totalDistance);
+    
+    // Close connection file
     fclose(connectionFilePtr);
 
     // Free allocated memory
@@ -358,6 +365,7 @@ void placeLattice(int numParticles, double L_x, double L_y, double radius, Parti
                     particles[placedParticles].x = radius + j * dx;
                     particles[placedParticles].y = radius + i * dy;
                     particles[placedParticles].radius = radius;
+                    particles[placedParticles].synapses = 0;
                     placedParticles++;
                 }
             }
@@ -376,7 +384,12 @@ void placeLattice(int numParticles, double L_x, double L_y, double radius, Parti
 **************************************************************************************************************/
 double Distance(Particle p1, Particle p2)
 {
-    return sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2));
+    double distance = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2));
+    if(distance < 1e-4)
+    {
+        return 0.0;
+    } 
+    return distance;
 }
 
 
