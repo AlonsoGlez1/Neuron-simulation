@@ -5,18 +5,14 @@
 #include <math.h>
 
 
-/*  +=========================================================================================================+
-    ||                                          DEFINE MACROS                                                ||
-    +=========================================================================================================+  */
-
 #define PI 3.141592654          // Constant for the value of pi
 #define DECAYFACTOR 20.0        // Factor for the exponential decay in connection probability
 #define THRESHOLD_RADIUS 20.0   // Radius within consider nearby particles
 #define PACKING_FRACTION 0.5    // Packing fraction of the system (area occupied / total area)
 #define INT_DIST_POWER 2        // Power of the factor of interdistance neurons reduction of probability
-#define TRUE 1			        // Boolean expression for True
-#define FALSE 0			        // Boolean expression for False
-#define BRANCHES 2              // How many branches can a single initial neuron spread through
+#define TRUE 1
+#define FALSE 0
+#define BRANCHES 3              // How many branches can a single initial neuron spread through
 
 
 /*  +=========================================================================================================+
@@ -49,13 +45,9 @@ void findNearbyParticles(Particle *particles, int numParticles, int ***nearbyPar
 void freeNearbyParticles(int **nearbyParticles, int numParticles, int *nearbyCounts);
 
 
-/*  +=========================================================================================================+
-    ||                                             MAIN FUNCTION                                             ||
-    +=========================================================================================================+  */
-
 int main() {
     int numParticles, timeSteps, N_synapses;                      // Number of particles, timeSteps for connections and synapses
-    double L_x, L_y, radius, totalDistance, end_to_end_Distance;  // Physical dimensions
+    double L_x, L_y, radius;  // Physical dimensions
     char modo, particleFile[100], connectionFile[100];            // Mode (random|lattice) and filenames
 
 
@@ -149,12 +141,14 @@ int main() {
 
     int initialParticle = rand() % (numParticles + 1);  // Initialize randomly the first neuron
     double maxDistance = THRESHOLD_RADIUS;              // Maximum distance possible
-    int failedConnectionAttempt = 0;                    // Counter of failed connection attempts
 
     for(int branch = 0; branch < BRANCHES; branch++)
     {
-        // Get the same first neuron at the beginning of each branching
+        // Restart values at the beginning of each branching
         int currentParticle = initialParticle;
+        int failedConnectionAttempt = 0;    
+        double totalDistance = 0.0; 
+        double end_to_end_Distance = 0.0;
 
         // Print the initial neuron in the connection file
         fprintf(connectionFilePtr, "'X Y Radius'\n");
@@ -264,7 +258,7 @@ int main() {
         fprintf(connectionFilePtr, "\n\nEnd-to-end Total\n");
         fprintf(connectionFilePtr, "%lf %lf\n\n", end_to_end_Distance, totalDistance);
     }
-    
+
     // Close connection file
     fclose(connectionFilePtr);
 
@@ -388,7 +382,7 @@ double Distance(Particle p1, Particle p2)
     if(distance < 1e-4)
     {
         return 0.0;
-    } 
+    }
     return distance;
 }
 
