@@ -23,10 +23,11 @@ typedef struct
     int synapses;   // Number of synapses (connections)
 } Neuron;
 
-
-/*  +=========================================================================================================+
-    ||                                          FUNCTION PROTOTYPES                                          ||
-    +=========================================================================================================+  */
+/*
++=========================================================================================================+
+||                                          FUNCTION PROTOTYPES                                          ||
++=========================================================================================================+  
+*/
 
 void packingFraction(int N_neurons, double L_x, double L_y, double radius);
 void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *neurons);
@@ -54,11 +55,11 @@ int main()
 
 
    // Read the number of neurons, the dimensions of the box and neuron radii
-   printf("Random or Lattice mode (R/L): ");       scanf(" %c", &modo);
-   printf("Enter the number of neurons: ");        scanf("%d", &N_neurons);
-   printf("Enter the width (L_x) of the box: ");   scanf("%lf", &L_x);
-   printf("Enter the height (L_y) of the box: ");  scanf("%lf", &L_y);
-   printf("Enter the radius of the neurons: ");    scanf("%lf", &radius);
+   printf("Random or Lattice mode (R/L): ");      scanf(" %c", &modo);
+   printf("Enter the number of neurons: ");       scanf("%d", &N_neurons);
+   printf("Enter the width (L_x) of the box: ");  scanf("%lf", &L_x);
+   printf("Enter the height (L_y) of the box: "); scanf("%lf", &L_y);
+   printf("Enter the radius of the neurons: ");   scanf("%lf", &radius);
 
 
    // Check the packing fraction, if it's too dense, it cannot allocate all the neurons
@@ -66,10 +67,15 @@ int main()
 
 
    //Read timeSteps, N_synapses and file names
-   printf("Enter the time steps: ");                               scanf("%d", &timeSteps);
-   printf("Enter the max number of synapses per neuron: ");          scanf("%d", &N_synapses);
-   printf("Enter the filename to save neuron data (.dat): ");      scanf(" %s", neuronFile);
-   printf("Enter the filename to save connection data (.dat): ");  scanf(" %s", connectionFile);
+   printf("Enter the time steps: ");                              scanf("%d", &timeSteps);
+   printf("Enter the max number of synapses per neuron: ");       scanf("%d", &N_synapses);
+   printf("Enter the filename to save neuron data (.dat): ");     scanf(" %99s", neuronFile);
+   printf("Enter the filename to save connection data (.dat): "); scanf(" %99s", connectionFile);
+
+
+   // Append "_dat" to the user input
+    strcat(neuronFile, "_dat"); 
+    strcat(connectionFile, "_dat"); 
 
 
    // Allocate memory for the neurons
@@ -80,10 +86,11 @@ int main()
       return EXIT_FAILURE;
    }
 
-
-/* +=========================================================================================================+
-   ||                                      INITIALIZE NEURON POSITIONS                                      ||
-   +=========================================================================================================+  */
+/*
++=========================================================================================================+
+||                                      INITIALIZE NEURON POSITIONS                                      ||
++=========================================================================================================+
+*/
 
    if (modo == 'R' || modo == 'r')
    {
@@ -105,7 +112,7 @@ int main()
    FILE *neuronFilePtr = fopen(neuronFile, "w");
    if(neuronFilePtr == NULL)
    {
-      fprintf(stderr, "\nFailed to open file for writing\n");
+      fprintf(stderr, "\nFailed to open neuron file for writing\n");
       free(neurons);
       return EXIT_FAILURE;
    }
@@ -119,9 +126,11 @@ int main()
    fclose(neuronFilePtr);
 
 
-/* +=========================================================================================================+
-   ||                                     INITIALIZE NEURON CONNECTIONS                                     ||
-   +=========================================================================================================+  */
+/* 
++=========================================================================================================+
+||                                     INITIALIZE NEURON CONNECTIONS                                     ||
++=========================================================================================================+
+*/
 
    // Open the file for writing neuron connections
    FILE *connectionFilePtr = fopen(connectionFile, "w");
@@ -149,6 +158,7 @@ int main()
       int failedConnectionAttempt = 0;
       double totalDistance = 0.0;
       double end_to_end_Distance = 0.0;
+      int N_connections = 0;
 
       // Print the initial neuron in the connection file
       fprintf(connectionFilePtr, "'X Y Radius'\n");
@@ -190,6 +200,7 @@ int main()
                            && isBetween(neurons[currentNeuron], neurons[interNeuron], neurons[candidateNeuron]))
                         {
                            if(interdistance <= (0.5 * radius)
+                              && interNeuron != initialNeuron
                               && neurons[interNeuron].synapses < N_synapses - 1)
                            {
                               // The intermediate neuron becomes the new candidate
@@ -224,6 +235,9 @@ int main()
          {
             // Calculate the total distance through the connections
             totalDistance += Distance(neurons[currentNeuron], neurons[nextNeuron]);
+            
+            //Keep track of N_connections
+            N_connections += 1;
 
             // Write the connected neuron
             fprintf(connectionFilePtr, "%lf %lf %lf\n", neurons[nextNeuron].x, neurons[nextNeuron].y, neurons[nextNeuron].radius);
@@ -255,8 +269,9 @@ int main()
       }
 
       // Print the end-to-end distance and total distance
-      fprintf(connectionFilePtr, "\n\nEnd-to-end Total\n");
-      fprintf(connectionFilePtr, "%lf %lf\n\n", end_to_end_Distance, totalDistance);
+      double connectedFraction = (double)N_connections / N_neurons;
+      fprintf(connectionFilePtr, "\n\nEnd-to-end   Total   connectedFraction\n");
+      fprintf(connectionFilePtr, "%lf %lf %lf\n\n", end_to_end_Distance, totalDistance, connectedFraction);
    }
 
    // Close connection file
@@ -272,11 +287,11 @@ int main()
 }
 
 
-
-/* +=========================================================================================================+
-   ||                                               FUNCTIONS                                               ||
-   +=========================================================================================================+  */
-
+/*
++=========================================================================================================+
+||                                               FUNCTIONS                                               ||
++=========================================================================================================+  
+*/
 
 /**************************************************************************************************************
 * @brief Computes the packing fraction based on the number of neurons, box dimensions and neuron radius.
@@ -342,12 +357,19 @@ void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *n
 * @param neurons   Array of structures of neurons.
 **************************************************************************************************************/
 void placeLattice(int N_neurons, double L_x, double L_y, double radius, Neuron *neurons)
-{
+{   
    int numRows = (int)sqrt(N_neurons);
    int numCols = (N_neurons + numRows - 1) / numRows; // Handles non-perfect squares
 
    double dx = (L_x - 2 * radius) / (numCols - 1);    // Spacing in the x direction
    double dy = (L_y - 2 * radius) / (numRows - 1);    // Spacing in the y direction
+
+   double distance = sqrt(dx * dx + dy* dy);          // Handles overlapping
+   if(distance < 2 * radius)
+   {
+      fprintf(stderr, "Error: unavoidable overlapping");
+      exit(EXIT_FAILURE);
+   }
 
    int placedParticles = 0;
    for(int i = 0; i < numRows; ++i)
