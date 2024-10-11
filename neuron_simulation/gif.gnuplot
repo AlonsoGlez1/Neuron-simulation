@@ -25,7 +25,7 @@ colors = "red green purple"
 
 # Plot all neurons by themselves and label for the current time step
 set label 1 sprintf("Time Step: %d", 0) at screen 0.1, 0.95 font "Times-Roman,24" tc rgb "black"
-plot 'neurons' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
+plot 'neurons_dat' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
     
 # Loop through the connections and plot them 
 do for [i=1:50] {
@@ -33,10 +33,10 @@ do for [i=1:50] {
     set label 1 sprintf("Time Step: %d", i) at screen 0.1, 0.95 font "Times-Roman,24" tc rgb "black"
    
     # Replot neurons to keep them in the plot and plotting the connecting neurons with colors
-    plot 'neurons' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle, \
-         for [j=0:2] 'connections' index j using 1:2:3 every ::1::i with circles lc rgb word(colors, j+1) fill solid 0.5 notitle, \
-         for [j=0:2] 'connections' index j every ::1::i with lines ls (j+2) notitle, \
-         'connections' index 0 using 1:2:3 every ::1::1 with circles lc rgb "black" fill solid 1 notitle
+    plot 'neurons_dat' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle, \
+         for [j=0:2] 'connections_dat' index j using 1:2:3 every ::1::i with circles lc rgb word(colors, j+1) fill solid 0.5 notitle, \
+         for [j=0:2] 'connections_dat' index j every ::1::i with lines ls (j+2) notitle, \
+         'connections_dat' index 0 using 1:2:3 every ::1::1 with circles lc rgb "black" fill solid 1 notitle
 
     # Pause to create frames for the GIF
     pause 0.05
