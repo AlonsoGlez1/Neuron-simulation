@@ -5,11 +5,12 @@
 #include <math.h>
 
 #define PI 3.141592654       // Constant for the value of pi
-#define DECAYFACTOR 15.0     // Factor for the exponential decay in connection probability
+#define DECAY_FACTOR 20.0    // Factor for the distance decay in connection probability
+#define INT_FACTOR 2         // Factor for the interdistance decay in connection probability
+#define SCALE_FACTOR 0.7     // Global factor to scale the probability distribution
 #define CUTOFF_RADIUS 25.0   // Radius within consider nearby neurons
-#define PACKING_FRACTION 0.5 // Packing fraction of the system (area occupied / total area)
-#define INT_DIST_POWER 2     // Power of the interdistance factor reduction
-#define BRANCHES 3           // How many branches per initial neuron
+#define PACKING_FRACTION 0.5 // Maximum packing fraction of the system (area occupied / total area)
+#define BRANCHES 1           // Amount of branches per initial neuron
 #define TRUE 1
 #define FALSE 0
 
@@ -118,7 +119,7 @@ int main()
    }
 
    // Write the neuron positions and radii to the file
-   fprintf(neuronFilePtr, "'Xlabel Ylabel Radius'\n");
+   fprintf(neuronFilePtr, "'Xlabel  Ylabel   Radius'\n");
    for(int i = 0; i < N_neurons; ++i)
    {
       fprintf(neuronFilePtr, "%lf %lf %lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
@@ -211,7 +212,7 @@ int main()
                            }
                            else
                            {
-                              intDistFactor *= pow(interdistance / radius , INT_DIST_POWER);
+                              intDistFactor += interdistance / radius;
                            }
                         }
                      }
@@ -485,7 +486,7 @@ double connectionProbability(double dist, double maxDistance, double intDistFact
    {
       return 0.0;
    }
-   return (1 - dist/maxDistance) * exp(- DECAYFACTOR * (dist/maxDistance)) * intDistFactor;
+   return SCALE_FACTOR * (1 - dist/maxDistance) * exp(- DECAY_FACTOR * (dist/maxDistance) - INT_FACTOR * intDistFactor);
 }
 
 
