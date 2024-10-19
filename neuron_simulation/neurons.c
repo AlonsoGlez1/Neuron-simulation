@@ -5,12 +5,12 @@
 #include <math.h>
 
 #define PI 3.141592654       // Constant for the value of pi
-#define DECAY_FACTOR 20.0    // Factor for the distance decay in connection probability
-#define INT_FACTOR 2         // Factor for the interdistance decay in connection probability
-#define SCALE_FACTOR 0.7     // Global factor to scale the probability distribution
+#define DECAY_FACTOR 10.0    // Factor for the distance decay in connection probability
+#define INT_DIST_FACTOR 2.0  // Factor for the interdistance decay in connection probability
+#define SCALE_FACTOR 0.9     // Global factor to scale the probability distribution
 #define CUTOFF_RADIUS 25.0   // Radius within consider nearby neurons
 #define PACKING_FRACTION 0.5 // Maximum packing fraction of the system (area occupied / total area)
-#define BRANCHES 1           // Amount of branches per initial neuron
+#define BRANCHES 2           // Amount of branches per initial neuron
 #define TRUE 1
 #define FALSE 0
 
@@ -119,7 +119,7 @@ int main()
    }
 
    // Write the neuron positions and radii to the file
-   fprintf(neuronFilePtr, "'Xlabel  Ylabel   Radius'\n");
+   fprintf(neuronFilePtr, "'Xlabel   Ylabel   Radius'\n");
    for(int i = 0; i < N_neurons; ++i)
    {
       fprintf(neuronFilePtr, "%lf %lf %lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
@@ -160,10 +160,12 @@ int main()
       double totalDistance = 0.0;
       double end_to_end_Distance = 0.0;
       int N_connections = 0;
+      double connectedFraction = 0.0;
 
       // Print the initial neuron in the connection file
-      fprintf(connectionFilePtr, "'X Y Radius'\n");
-      fprintf(connectionFilePtr, "%lf %lf %lf\n", neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius);
+      fprintf(connectionFilePtr, "'Xlabel   Ylabel   Radius   EndToEnd   TotalDist   ConnectedFraction'\n");
+      fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf\n", 
+               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 0.000000, 0.000000, 0.000000);
 
       // Start connection attempts
       for(int i = 0; i < timeSteps; ++i)
@@ -234,14 +236,18 @@ int main()
          // If a valid next neuron was found, create a connection
          if(nextNeuron != -1)
          {
-            // Calculate the total distance through the connections
+            // Calculate distances through the connections
             totalDistance += Distance(neurons[currentNeuron], neurons[nextNeuron]);
-            
-            //Keep track of N_connections
+            end_to_end_Distance = Distance(neurons[initialNeuron], neurons[nextNeuron]);
+
+
+            //Keep track of N_connections and connected fraction
             N_connections += 1;
+            connectedFraction = (double)N_connections / N_neurons;
 
             // Write the connected neuron
-            fprintf(connectionFilePtr, "%lf %lf %lf\n", neurons[nextNeuron].x, neurons[nextNeuron].y, neurons[nextNeuron].radius);
+            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf\n", neurons[nextNeuron].x, neurons[nextNeuron].y, neurons[nextNeuron].radius,
+                     end_to_end_Distance, totalDistance, connectedFraction);
 
             // Add a synapse if the connection is made
             neurons[nextNeuron].synapses += 1;
@@ -258,21 +264,13 @@ int main()
             failedConnectionAttempt += 1;
 
             // Print space to the file to not make a new connection in the timeStep for the gif animation
-            fprintf(connectionFilePtr, "%lf %lf %lf\n", neurons[currentNeuron].x, neurons[currentNeuron].y, neurons[currentNeuron].radius);
-         }
-
-
-         // When reaching the last time step, calculate the end-to-end distance
-         if(i + 1 == timeSteps)
-         {
-            end_to_end_Distance = Distance(neurons[initialNeuron], neurons[currentNeuron]);
+            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf\n", neurons[currentNeuron].x, neurons[currentNeuron].y,
+                     neurons[currentNeuron].radius, end_to_end_Distance, totalDistance, connectedFraction);
          }
       }
-
-      // Print the end-to-end distance and total distance
-      double connectedFraction = (double)N_connections / N_neurons;
-      fprintf(connectionFilePtr, "\n\nEnd-to-end   Total   connectedFraction\n");
-      fprintf(connectionFilePtr, "%lf %lf %lf\n\n", end_to_end_Distance, totalDistance, connectedFraction);
+      
+      //Line break to separate data
+      fprintf(connectionFilePtr, "\n\n\n");
    }
 
    // Close connection file
@@ -486,7 +484,7 @@ double connectionProbability(double dist, double maxDistance, double intDistFact
    {
       return 0.0;
    }
-   return SCALE_FACTOR * (1 - dist/maxDistance) * exp(- DECAY_FACTOR * (dist/maxDistance) - INT_FACTOR * intDistFactor);
+   return SCALE_FACTOR * (1 - dist/maxDistance) * exp(- DECAY_FACTOR * (dist/maxDistance) - INT_DIST_FACTOR * intDistFactor);
 }
 
 
