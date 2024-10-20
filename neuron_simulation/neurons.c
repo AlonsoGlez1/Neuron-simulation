@@ -51,7 +51,6 @@ int main()
 {
    int N_neurons, timeSteps, N_synapses;      // Number of neurons, timeSteps for connections and synapses
    double L_x, L_y, radius;                   // Physical dimensions
-   char neuronFile[100], connectionFile[100]; // File names
    char modo;                                 // Mode (random|lattice)
 
 
@@ -74,13 +73,6 @@ int main()
    //Read timeSteps, N_synapses and file names
    printf("Enter the time steps: ");                              scanf("%d", &timeSteps);
    printf("Enter the max number of synapses per neuron: ");       scanf("%d", &N_synapses);
-   printf("Enter the filename to save neuron data (.dat): ");     scanf(" %99s", neuronFile);
-   printf("Enter the filename to save connection data (.dat): "); scanf(" %99s", connectionFile);
-
-
-   // Append "_dat" to the user input
-    strcat(neuronFile, "_dat"); 
-    strcat(connectionFile, "_dat"); 
 
 
    // Allocate memory for the neurons
@@ -126,7 +118,7 @@ int main()
    fprintf(neuronFilePtr, "'Xlabel   Ylabel   Radius'\n");
    for(int i = 0; i < N_neurons; ++i)
    {
-      fprintf(neuronFilePtr, "%lf %lf %lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
+      fprintf(neuronFilePtr, "%lf %lf %.2lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
    }
    fclose(neuronFilePtr);
 
@@ -156,8 +148,9 @@ int main()
    int initialNeuron = rand() % (N_neurons + 1); // Initialize randomly the first neuron
    double maxDistance = CUTOFF_RADIUS;           // Maximum distance possible
 
-   // Create and allocate memory for a 3D array saving (branch, time step, data stored) 
-   // Data: 0: end-to-end distance. 1: Total Distance. 2 Connected Fraction.
+   /* Create and allocate memory for a 3D array saving (branch, time step, data stored) 
+      Data: 0: N_Connections. 1: Total Distance. 2 Connected Fraction. 
+      Array gets stored as systemData[Data][Branches][TimeSteps] */
     double ***systemData = allocate3DArray(BRANCHES, timeSteps, 3);
    
 
@@ -171,10 +164,12 @@ int main()
       int N_connections = 0;
       double connectedFraction = 0.0;
 
-      // Print the initial neuron in the connection file
+      // Print the initial neuron in the connection file and define the format string
+      const char *formatConnections = "%2.4lf %10.4lf %6.2lf %10.4lf %10.4lf %12.4lf %15d\n";
+
       fprintf(connectionFilePtr, "'Xlabel   Ylabel   Radius   EndToEnd   TotalDist   ConnectedFraction   TimeStep'\n");
-      fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf %d\n", 
-               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 0.000000, 0.000000, 0.000000, 0);
+      fprintf(connectionFilePtr, formatConnections, neurons[initialNeuron].x, neurons[initialNeuron].y, 
+               neurons[initialNeuron].radius, 0.0000, 0.0000, 0.0000, 0);
 
       // Start connection attempts
       for(int time = 0; time < timeSteps; ++time)
@@ -254,8 +249,8 @@ int main()
             connectedFraction = (double)N_connections / N_neurons;
 
             // Write the connected neuron and variables
-            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf %d\n", neurons[nextNeuron].x, neurons[nextNeuron].y, neurons[nextNeuron].radius,
-                     end_to_end_Distance, totalDistance, connectedFraction, time + 1);
+            fprintf(connectionFilePtr, formatConnections, neurons[nextNeuron].x, neurons[nextNeuron].y, 
+                     neurons[nextNeuron].radius, end_to_end_Distance, totalDistance, connectedFraction, time + 1);
 
             // Add a synapse if the connection is made
             neurons[nextNeuron].synapses += 1;
@@ -272,12 +267,12 @@ int main()
             failedConnectionAttempt += 1;
 
             // Print space to the file to not make a new connection in the timeStep for the gif animation
-            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf %d\n", neurons[currentNeuron].x, neurons[currentNeuron].y,
+            fprintf(connectionFilePtr, formatConnections, neurons[currentNeuron].x, neurons[currentNeuron].y,
                      neurons[currentNeuron].radius, end_to_end_Distance, totalDistance, connectedFraction, time + 1);
          }
 
          // Store data to use in multiple branches
-            systemData[branch][time][0] = end_to_end_Distance;
+            systemData[branch][time][0] = N_connections;
             systemData[branch][time][1] = totalDistance;
             systemData[branch][time][2] = connectedFraction;
       }
@@ -291,7 +286,9 @@ int main()
 
 
    // Write in a file the results for multiple branches in a single time step
-   FILE *resultsFilePtr = fopen("resultsFile_dat", "w");
+   const char *formatResults = "%5.0lf %18.4lf %15.4lf %15d\n";
+
+   FILE *resultsFilePtr = fopen("results_dat", "w");
    if(resultsFilePtr == NULL)
    {
       fprintf(stderr, "\nFailed to open results data file for writing\n");
@@ -304,26 +301,27 @@ int main()
       return 1;
    }
 
-   fprintf(resultsFilePtr, "'EndToEnd  TotalDist   ConnectedFraction   TimeStep'\n");
-   fprintf(resultsFilePtr, "%lf %lf %lf %d\n", 0.000000, 0.000000, 0.000000, 0);
+   fprintf(resultsFilePtr, "'N_Connections   TotalDist   ConnectedFraction   TimeStep'\n");
+   fprintf(resultsFilePtr, formatResults, 0, 0.000000, 0.000000, 0);
    
    // Create and allocate memory for a 2D array that merges the multiple branches data into the same time step
    double** results = allocate2DArray(timeSteps, 3);
 
    // Merge the data of the 3D array into the same time step
-   for(int i = 0; i < timeSteps; i++)
+   for(int time = 0; time < timeSteps; time++)
    {
-      for(int j = 0; j < BRANCHES; j++)
+      for(int branch = 0; branch < BRANCHES; branch++)
       {
-         results[i][1] += systemData[j][i][1];
-         results[i][2] += systemData[j][i][2];
+         results[time][0] += systemData[branch][time][0];
+         results[time][1] += systemData[branch][time][1];
+         results[time][2] += systemData[branch][time][2];
       }
    }
    
    // Print data per time step
    for(int time = 0; time < timeSteps; time++)   
    {
-      fprintf(resultsFilePtr, "%lf %lf %d\n", results[time][1], results[time][2], time + 1);
+      fprintf(resultsFilePtr, formatResults, results[time][0], results[time][1], results[time][2], time + 1);
    }
 
    fclose(resultsFilePtr);
@@ -335,7 +333,7 @@ int main()
    free2DArray(results, timeSteps);
 
 
-   printf("Neuron data saved to %s and connection data saved to %s\n", neuronFile, connectionFile);
+   printf("Neuron data saved to neurons_dat, connection data saved to connections_dat and results_dat\n");
 
    return EXIT_SUCCESS;
 }
