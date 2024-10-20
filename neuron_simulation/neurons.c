@@ -18,10 +18,10 @@
 // Define a structure to represent a neuron
 typedef struct
 {
-    double x;       // x-coordinate of the neuron
-    double y;       // y-coordinate of the neuron
-    double radius;  // Radius of the neuron
-    int synapses;   // Number of synapses (connections)
+   double x;       // x-coordinate of the neuron
+   double y;       // y-coordinate of the neuron
+   double radius;  // Radius of the neuron
+   int synapses;   // Number of synapses (connections)
 } Neuron;
 
 /*
@@ -41,6 +41,10 @@ double connectionProbability(double dist, double maxDistance, double intDistFact
 double interDistance(Neuron p1, Neuron p2, Neuron p3);
 void findNearbyParticles(Neuron *neurons, int N_neurons, int ***nearbyNeurons, int **nearbyCounts);
 void freeNearbyParticles(int **nearbyNeurons, int N_neurons, int *nearbyCounts);
+double*** allocate3DArray(int x, int y, int z);
+void free3DArray(double ***array, int x, int y);
+double** allocate2DArray(int rows, int cols);
+void free2DArray(double** array, int rows);
 
 
 int main()
@@ -110,7 +114,7 @@ int main()
 
 
    // Open the file for writing neuron positions
-   FILE *neuronFilePtr = fopen(neuronFile, "w");
+   FILE *neuronFilePtr = fopen("neurons_dat", "w");
    if(neuronFilePtr == NULL)
    {
       fprintf(stderr, "\nFailed to open neuron file for writing\n");
@@ -134,7 +138,7 @@ int main()
 */
 
    // Open the file for writing neuron connections
-   FILE *connectionFilePtr = fopen(connectionFile, "w");
+   FILE *connectionFilePtr = fopen("connections_dat", "w");
    if (connectionFilePtr == NULL)
    {
       fprintf(stderr, "\nFailed to open connection data file for writing\n");
@@ -152,6 +156,11 @@ int main()
    int initialNeuron = rand() % (N_neurons + 1); // Initialize randomly the first neuron
    double maxDistance = CUTOFF_RADIUS;           // Maximum distance possible
 
+   // Create and allocate memory for a 3D array saving (branch, time step, data stored) 
+   // Data: 0: end-to-end distance. 1: Total Distance. 2 Connected Fraction.
+    double ***systemData = allocate3DArray(BRANCHES, timeSteps, 3);
+   
+
    for(int branch = 0; branch < BRANCHES; branch++)
    {
       // Restart values at the beginning of each branching
@@ -163,12 +172,12 @@ int main()
       double connectedFraction = 0.0;
 
       // Print the initial neuron in the connection file
-      fprintf(connectionFilePtr, "'Xlabel   Ylabel   Radius   EndToEnd   TotalDist   ConnectedFraction'\n");
-      fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf\n", 
-               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 0.000000, 0.000000, 0.000000);
+      fprintf(connectionFilePtr, "'Xlabel   Ylabel   Radius   EndToEnd   TotalDist   ConnectedFraction   TimeStep'\n");
+      fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf %d\n", 
+               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 0.000000, 0.000000, 0.000000, 0);
 
       // Start connection attempts
-      for(int i = 0; i < timeSteps; ++i)
+      for(int time = 0; time < timeSteps; ++time)
       {
          int nextNeuron = -1;
 
@@ -239,15 +248,14 @@ int main()
             // Calculate distances through the connections
             totalDistance += Distance(neurons[currentNeuron], neurons[nextNeuron]);
             end_to_end_Distance = Distance(neurons[initialNeuron], neurons[nextNeuron]);
-
-
+            
             //Keep track of N_connections and connected fraction
             N_connections += 1;
             connectedFraction = (double)N_connections / N_neurons;
 
-            // Write the connected neuron
-            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf\n", neurons[nextNeuron].x, neurons[nextNeuron].y, neurons[nextNeuron].radius,
-                     end_to_end_Distance, totalDistance, connectedFraction);
+            // Write the connected neuron and variables
+            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf %d\n", neurons[nextNeuron].x, neurons[nextNeuron].y, neurons[nextNeuron].radius,
+                     end_to_end_Distance, totalDistance, connectedFraction, time + 1);
 
             // Add a synapse if the connection is made
             neurons[nextNeuron].synapses += 1;
@@ -264,9 +272,14 @@ int main()
             failedConnectionAttempt += 1;
 
             // Print space to the file to not make a new connection in the timeStep for the gif animation
-            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf\n", neurons[currentNeuron].x, neurons[currentNeuron].y,
-                     neurons[currentNeuron].radius, end_to_end_Distance, totalDistance, connectedFraction);
+            fprintf(connectionFilePtr, "%lf %lf %lf %lf %lf %lf %d\n", neurons[currentNeuron].x, neurons[currentNeuron].y,
+                     neurons[currentNeuron].radius, end_to_end_Distance, totalDistance, connectedFraction, time + 1);
          }
+
+         // Store data to use in multiple branches
+            systemData[branch][time][0] = end_to_end_Distance;
+            systemData[branch][time][1] = totalDistance;
+            systemData[branch][time][2] = connectedFraction;
       }
       
       //Line break to separate data
@@ -276,9 +289,51 @@ int main()
    // Close connection file
    fclose(connectionFilePtr);
 
+
+   // Write in a file the results for multiple branches in a single time step
+   FILE *resultsFilePtr = fopen("resultsFile_dat", "w");
+   if(resultsFilePtr == NULL)
+   {
+      fprintf(stderr, "\nFailed to open results data file for writing\n");
+      
+      // Free allocated memory 
+      free(neurons);
+      freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
+      free3DArray(systemData, BRANCHES, timeSteps);
+      
+      return 1;
+   }
+
+   fprintf(resultsFilePtr, "'EndToEnd  TotalDist   ConnectedFraction   TimeStep'\n");
+   fprintf(resultsFilePtr, "%lf %lf %lf %d\n", 0.000000, 0.000000, 0.000000, 0);
+   
+   // Create and allocate memory for a 2D array that merges the multiple branches data into the same time step
+   double** results = allocate2DArray(timeSteps, 3);
+
+   // Merge the data of the 3D array into the same time step
+   for(int i = 0; i < timeSteps; i++)
+   {
+      for(int j = 0; j < BRANCHES; j++)
+      {
+         results[i][1] += systemData[j][i][1];
+         results[i][2] += systemData[j][i][2];
+      }
+   }
+   
+   // Print data per time step
+   for(int time = 0; time < timeSteps; time++)   
+   {
+      fprintf(resultsFilePtr, "%lf %lf %d\n", results[time][1], results[time][2], time + 1);
+   }
+
+   fclose(resultsFilePtr);
+
    // Free allocated memory
    free(neurons);
    freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
+   free3DArray(systemData, BRANCHES, timeSteps);
+   free2DArray(results, timeSteps);
+
 
    printf("Neuron data saved to %s and connection data saved to %s\n", neuronFile, connectionFile);
 
@@ -564,4 +619,130 @@ void freeNearbyParticles(int **nearbyNeurons, int N_neurons, int *nearbyCounts)
    }
    free(nearbyNeurons);
    free(nearbyCounts);
+}
+
+
+
+/**************************************************************************************************************
+* @brief Allocates memory for a dynamic 2D array and initialize all elements to 0.
+*
+* @param rows Rows of the array.
+* @param cols Columns of the array. 
+* 
+* @return The array with memory allocated and all elements initialized to 0.
+**************************************************************************************************************/
+double** allocate2DArray(int rows, int cols) 
+{
+   // Allocate memory for the array of pointers
+   double** array = malloc(rows * sizeof(double*));
+   if (array == NULL)
+   {
+      fprintf(stderr, "Failed to allocate memory for the rows");
+      exit(EXIT_FAILURE);
+   }
+
+   // Allocate memory for each row and initialize to 0
+   for(int i = 0; i < rows; i++)
+   {
+      array[i] = calloc(cols, sizeof(double)); // Allocate and initialize to 0
+      if (array[i] == NULL)
+      {
+         fprintf(stderr, "Failed to allocate memory for the columns");
+         
+         // Free previously allocated memory before exiting
+         for(int j = 0; j < i; j++)
+         {
+            free(array[j]);
+         }
+         free(array);
+         exit(EXIT_FAILURE);
+      }
+   }
+
+   return array; // Return the allocated 2D array
+}
+
+
+
+/**************************************************************************************************************
+* @brief Frees allocated memory for a dynamic 2D array.
+*
+* @param array The array to be freed (Freedom!).
+* @param cols  Columns of the array. 
+**************************************************************************************************************/
+void free2DArray(double** array, int rows)
+{
+   for(int i = 0; i < rows; i++)
+   {
+      free(array[i]); // Free each row
+   }
+   free(array); // Free the array of pointers
+}
+
+
+
+/**************************************************************************************************************
+* @brief Allocates memory for a dynamic 3D array and initialize all elements to 0.
+*
+* @param x First dimension.
+* @param y Second direction.
+* @param z Third direction. 
+* 
+* @return The array with memory allocated and all elements initialized to 0.
+**************************************************************************************************************/
+double*** allocate3DArray(int x, int y, int z)
+{
+   // Allocate memory for the array of pointers to 2D arrays
+   double ***array = malloc(x * sizeof(int **));
+   if (array == NULL) 
+   {
+     fprintf(stderr, "Failed to allocate memory for the first dimension");
+     exit(EXIT_FAILURE);
+   }
+
+   // Allocate memory for each 2D array and initialize to 0
+   for(int i = 0; i < x; i++)
+   {
+      array[i] = malloc(y * sizeof(int *));
+      if(array[i] == NULL)
+      {
+         fprintf(stderr, "Failed to allocate memory for the second dimension");
+         exit(EXIT_FAILURE);
+      }
+
+        // Allocate memory for each row of the 2D arrays and initialize to 0
+      for(int j = 0; j < y; j++)
+      {
+         array[i][j] = calloc(z, sizeof(int)); // Use calloc to initialize to 0
+         if (array[i][j] == NULL)
+         {
+            fprintf(stderr, "Failed to allocate memory for the third dimension");
+            exit(EXIT_FAILURE);
+         }
+      }
+   }
+
+   return array; // Return the allocated 3D array
+}
+
+
+
+/**************************************************************************************************************
+* @brief Frees allocated memory for a dynamic 3D array.
+*
+* @param array The array to be freed (Freedom!).
+* @param x     First dimention.
+* @param y     Second dimention. 
+**************************************************************************************************************/
+void free3DArray(double ***array, int x, int y)
+{
+   for(int i = 0; i < x; i++)
+   {
+      for(int j = 0; j < y; j++)
+      {
+         free(array[i][j]); // Free each row of the 2D arrays
+      }
+      free(array[i]); // Free each 2D array
+   }
+   free(array); // Free the array of pointers to 2D arrays
 }
