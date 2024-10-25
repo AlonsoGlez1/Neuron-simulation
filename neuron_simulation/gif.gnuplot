@@ -1,5 +1,5 @@
 # Set the output format and file name
-set terminal gif animate size 1200,1200 delay 100
+set terminal gif animate size 1200,1200 delay 50
 set output '500.gif'
 
 # Set the plot range and ratio
@@ -29,7 +29,7 @@ set label 1 sprintf("Time Step: %d", 0) at screen 0.1, 0.95 font "Times-Roman,24
 plot 'neurons_dat' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
     
 # Loop through the connections and plot them 
-do for [i=1:50] {
+do for [i=1:100] {
     # Update label for the current time step
     set label 1 sprintf("Time Step: %d", i) at screen 0.1, 0.95 font "Times-Roman,24" tc rgb "black"
    
@@ -40,6 +40,5 @@ do for [i=1:50] {
          'connections_dat' index 0 using 1:2:3 every ::1::1 with circles lc rgb "black" fill solid 1 notitle
 
     # Pause to create frames for the GIF
-    pause 0.05
-}
-
+    pause 0.01
+    }
