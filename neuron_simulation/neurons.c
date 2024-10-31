@@ -4,6 +4,7 @@
 #include <time.h>
 #include <math.h>
 
+
 #define PI 3.141592654       // Constant for the value of pi
 #define DECAY_FACTOR 5.0    // Factor for the distance decay in connection probability
 #define INT_DIST_FACTOR 2.0  // Factor for the interdistance decay in connection probability
@@ -24,15 +25,13 @@ typedef struct
    int synapses;   // Number of synapses (connections)
 } Neuron;
 
-/*
-+=========================================================================================================+
-||                                          FUNCTION PROTOTYPES                                          ||
-+=========================================================================================================+
-*/
 
+// Function prototypes
 void packingFraction(int N_neurons, double L_x, double L_y, double radius);
 void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *neurons);
 void placeLattice(int N_neurons, double L_x, double L_y, double radius, Neuron *neurons);
+void initializeNeurons(Neuron *neurons, int N_neurons, double L_x, double L_y, double radius, char mode);
+void writeNeuronData(FILE *file, Neuron *neurons, int N_neurons);
 double Distance(Neuron p1, Neuron p2);
 int isOverlapping(Neuron *neurons, int N_neurons, Neuron newNeuron);
 float setInside(float max, float min);
@@ -51,9 +50,9 @@ void free2DIntArray(int** array, int rows);
 
 int main()
 {
-   int N_neurons, timeSteps, N_synapses;      // Number of neurons, timeSteps for connections and synapses
-   double L_x, L_y, radius;                   // Physical dimensions
-   char modo;                                 // Mode (random|lattice)
+   int N_neurons, timeSteps, N_synapses; // Number of neurons, timeSteps for connections and synapses
+   double L_x, L_y, radius;              // Physical dimensions
+   char mode;                            // Mode (random|lattice)
 
 
    // Seed the random number generator
@@ -61,66 +60,42 @@ int main()
 
 
    // Read the number of neurons, the dimensions of the box and neuron radii
-   printf("Random or Lattice mode (R/L): ");      scanf(" %c", &modo);
-   printf("Enter the number of neurons: ");       scanf("%d", &N_neurons);
-   printf("Enter the width (L_x) of the box: ");  scanf("%lf", &L_x);
-   printf("Enter the height (L_y) of the box: "); scanf("%lf", &L_y);
-   printf("Enter the radius of the neurons: ");   scanf("%lf", &radius);
+   printf("Random or Lattice mode (R/L): ");                scanf(" %c", &mode);
+   printf("Enter the number of neurons: ");                 scanf("%d", &N_neurons);
+   printf("Enter the width (L_x) of the box: ");            scanf("%lf", &L_x);
+   printf("Enter the height (L_y) of the box: ");           scanf("%lf", &L_y);
+   printf("Enter the radius of the neurons: ");             scanf("%lf", &radius);
+   printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
+   printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
 
 
    // Check the packing fraction to ensure it isn't too dense
    packingFraction(N_neurons, L_x, L_y, radius);
 
 
-   //Read timeSteps and  N_synapses
-   printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
-   printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
-
-
    // Allocate memory for the neurons
    Neuron *neurons = (Neuron *)malloc(N_neurons * sizeof(Neuron));
-   if(neurons == NULL)
+   if(!neurons)
    {
       fprintf(stderr, "Memory allocation failed\n");
       return EXIT_FAILURE;
    }
 
-/*
-+=========================================================================================================+
-||                                      INITIALIZE NEURON POSITIONS                                      ||
-+=========================================================================================================+
-*/
 
-   if (modo == 'R' || modo == 'r')
-   {
-      placeRandom(N_neurons, L_x, L_y, radius, neurons); // Random positioning for the neurons
-   }
-   else if(modo == 'L' || modo == 'l')
-   {
-      placeLattice(N_neurons, L_x, L_y, radius, neurons); // Lattice positioning for the neurons
-   }
-   else
-   {
-      fprintf(stderr, "\nNot a valid mode\n");
-      free(neurons);
-      return EXIT_FAILURE;
-   }
+   // Initialize neuron positions
+   initializeNeurons(neurons, N_neurons, L_x, L_y, radius, mode);
 
 
    // Write the neuron positions and radii to a file
    FILE *neuronFilePtr = fopen("neurons_dat", "w");
-   if(neuronFilePtr == NULL)
+   if(!neuronFilePtr)
    {
-      fprintf(stderr, "\nFailed to open neuron file for writing\n");
+      fprintf(stderr, "Failed to open neuron file for writing\n");
       free(neurons);
+
       return EXIT_FAILURE;
    }
-
-   fprintf(neuronFilePtr, "'Xlabel   Ylabel   Radius'\n");
-   for(int i = 0; i < N_neurons; ++i)
-   {
-      fprintf(neuronFilePtr, "%lf %lf %.2lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
-   }
+   writeNeuronData(neuronFilePtr, neurons, N_neurons);
    fclose(neuronFilePtr);
 
 
@@ -138,7 +113,7 @@ int main()
       Data: 0: N_Connections. 1: Total Distance. 2: Connected Fraction. 4: EndToEndDistance
       Array gets stored as systemData[Data][TimeSteps][Branch] */
    double ***eachBranchData = allocate3DArray(4, timeSteps, BRANCHES);
-   int **neuronsList = allocate2DIntArray(BRANCHES,timeSteps);
+   int **neuronsList = allocate2DIntArray(BRANCHES, timeSteps);
 
    // Allocate arrays to keep track of each branch's progress
    int *currentNeurons = (int *)malloc(BRANCHES * sizeof(int));
@@ -147,17 +122,20 @@ int main()
    double *endToEndDistances = (double *)calloc(BRANCHES, sizeof(double));
    double *connectedFractions = (double *)calloc(BRANCHES, sizeof(double));
 
-   if (!currentNeurons || !N_connections || !totalDistances || !endToEndDistances || !connectedFractions) {
-     fprintf(stderr, "Memory allocation failed for branch data\n");
-     free(neurons);
-     freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
-     return EXIT_FAILURE;
+   if(!currentNeurons || !N_connections || !totalDistances || !endToEndDistances || !connectedFractions)
+   {
+      fprintf(stderr, "Memory allocation failed for branch data\n");
+      free(neurons);
+      freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
+      return EXIT_FAILURE;
    }
+
 
    // Initialize all branches with the same starting random neuron
    int initialNeuron = rand() % (N_neurons + 1);
-   for (int branch = 0; branch < BRANCHES; ++branch) {
-     currentNeurons[branch] = initialNeuron;
+   for(int branch = 0; branch < BRANCHES; ++branch)
+   {
+      currentNeurons[branch] = initialNeuron;
    }
 
    // Start looking for candidates. Any branch in the same time step.
@@ -229,9 +207,9 @@ int main()
          // If a connection was made, update the branch data
          if(nextNeuron != -1)
          {
+            N_connections[branch]++;
             totalDistances[branch] += Distance(neurons[currentNeuron], neurons[nextNeuron]);
             connectedFractions[branch] = (double)N_connections[branch] / N_neurons;
-            N_connections[branch]++;
             neurons[nextNeuron].synapses += 1;
             neurons[currentNeuron].synapses += 1;
 
@@ -244,7 +222,7 @@ int main()
             fprintf(stderr, "No valid connection found from neuron %d\n", currentNeuron);
          }
 
-         // Store data to use in multiple branches
+            // Store data to use in multiple branches
             eachBranchData[0][time][branch] = N_connections[branch];
             eachBranchData[1][time][branch] = totalDistances[branch];
             eachBranchData[2][time][branch] = connectedFractions[branch];
@@ -256,24 +234,30 @@ int main()
 
    // Open the file for writing neuron connections
    FILE *connectionFilePtr = fopen("connections_dat", "w");
-   if (connectionFilePtr == NULL)
+   if (!connectionFilePtr)
    {
       fprintf(stderr, "\nFailed to open connection data file for writing\n");
       free(neurons);
       freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
       free3DArray(eachBranchData, 4, timeSteps);
       free2DIntArray(neuronsList, BRANCHES);
-
+      free(currentNeurons);
+      free(N_connections);
+      free(totalDistances);
+      free(endToEndDistances);
+      free(connectedFractions);
+   
       return EXIT_FAILURE;
    }
 
    // Connection format string for file output
-   const char *formatConnections = "%2.4lf %10.4lf %6.2lf %10.4lf %10.0lf %15.4lf %15.4lf %15d\n";
+   const char *formatConnections = "%8.4lf %8.4lf %6.2lf %10.4lf %10.0lf %15.4lf %15.4lf %15d\n";
    for(int branch = 0; branch < BRANCHES; branch++)
    {
       fprintf(connectionFilePtr, "'Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   TimeStep'\n");
-      fprintf(connectionFilePtr, formatConnections, neurons[initialNeuron].x, neurons[initialNeuron].y,
-              neurons[initialNeuron].radius, 0.0000, 0, 0.0000, 0.0000, 0);
+      fprintf(connectionFilePtr, formatConnections, 
+              neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 
+              0.000000, 0.000000, 0.000000, 0.000000, 0);
       for(int time = 0; time < timeSteps; time++)
       {
          // Write connected neuron to the file
@@ -291,9 +275,8 @@ int main()
 
    // Write in a file the results for multiple branches in a single time step
    const char *formatResults = "%5.0lf %18.4lf %15.4lf %15d\n";
-
    FILE *resultsFilePtr = fopen("results_dat", "w");
-   if(resultsFilePtr == NULL)
+   if(!resultsFilePtr)
    {
       fprintf(stderr, "\nFailed to open results data file for writing\n");
 
@@ -302,8 +285,14 @@ int main()
       freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
       free3DArray(eachBranchData, 4, timeSteps);
       free2DIntArray(neuronsList, BRANCHES);
+      free(currentNeurons);
+      free(N_connections);
+      free(totalDistances);
+      free(endToEndDistances);
+      free(connectedFractions);
 
-      return 1;
+
+      return EXIT_FAILURE;
    }
 
    fprintf(resultsFilePtr, "'N_Connections   TotalDist   ConnectedFraction   TimeStep'\n");
@@ -337,6 +326,12 @@ int main()
    free3DArray(eachBranchData, 4, timeSteps);
    free2DArray(mergedBranchesData, 3);
    free2DIntArray(neuronsList, BRANCHES);
+   free(currentNeurons);
+   free(N_connections);
+   free(totalDistances);
+   free(endToEndDistances);
+   free(connectedFractions);
+
 
 
    printf("Neuron data saved to neurons_dat, connection data saved to connections_dat and results_dat\n");
@@ -372,7 +367,6 @@ void packingFraction(int N_neurons, double L_x, double L_y, double radius)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Places neurons inside a box in random positions avoiding overlaping.
 *
@@ -401,7 +395,6 @@ void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *n
          }
       }
 }
-
 
 
 /**************************************************************************************************************
@@ -446,6 +439,21 @@ void placeLattice(int N_neurons, double L_x, double L_y, double radius, Neuron *
 }
 
 
+/**************************************************************************************************************
+* @brief Function that prints into a file the positions of generated neurons.
+* @param file      The file name.
+* @param neurons   Array of structures of neurons.
+* @param N_neurons Total amount of neurons.
+**************************************************************************************************************/
+void writeNeuronData(FILE *file, Neuron *neurons, int N_neurons)
+{
+   fprintf(file, "'Xlabel   Ylabel   Radius'\n");
+   for(int i = 0; i < N_neurons; ++i)
+   {
+      fprintf(file, "%8.4lf %8.4lf %8.2lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
+   }
+}
+
 
 /**************************************************************************************************************
 * @brief Computes the Euclidean distance between two neurons.
@@ -466,7 +474,6 @@ double Distance(Neuron p1, Neuron p2)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Compares the distance between three neurons and checks if there is an intermediate one.
 *
@@ -485,7 +492,6 @@ int isBetween(Neuron p1, Neuron p2, Neuron p3)
    }
    return FALSE;
 }
-
 
 
 /**************************************************************************************************************
@@ -510,7 +516,6 @@ int isOverlapping(Neuron *neurons, int N_neurons, Neuron newNeuron)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Generates a random position inside the specified boundaries.
 *
@@ -524,7 +529,6 @@ float setInside(float max, float min)
    float scale = ((float)rand() / RAND_MAX); // Generate a random float between 0 and 1
    return min + scale * (max - 2 * min);     // Scale and shift the value to the desired range
 }
-
 
 
 /**************************************************************************************************************
@@ -545,7 +549,6 @@ double connectionProbability(double dist, double intDistFactor)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Computes the distance between a neuron and the line that connects a pair of neurons.
 *
@@ -564,7 +567,6 @@ double interDistance(Neuron p1, Neuron p2, Neuron p3)
    }
    return fabs((p2.y - p1.y) * p3.x - (p2.x - p1.x) * p3.y + p2.x * p1.y - p2.y * p1.x) / lineLength;
 }
-
 
 
 /**************************************************************************************************************
@@ -605,7 +607,6 @@ void findNearbyParticles(Neuron *neurons, int N_neurons, int ***nearbyNeurons, i
 }
 
 
-
 /**************************************************************************************************************
 * @brief Frees the memory allocated for the nearby neurons lists.
 *
@@ -624,7 +625,6 @@ void freeNearbyParticles(int **nearbyNeurons, int N_neurons, int *nearbyCounts)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Allocates memory for a dynamic 2D array with integer elements and initialize them to 0.
 *
@@ -637,7 +637,7 @@ int** allocate2DIntArray(int rows, int cols)
 {
    // Allocate memory for the array of pointers
    int** array = malloc(rows * sizeof(int*));
-   if (array == NULL)
+   if (!array)
    {
       fprintf(stderr, "Failed to allocate memory for the rows");
       exit(EXIT_FAILURE);
@@ -647,7 +647,7 @@ int** allocate2DIntArray(int rows, int cols)
    for(int i = 0; i < rows; i++)
    {
       array[i] = calloc(cols, sizeof(int)); // Allocate and initialize to 0
-      if (array[i] == NULL)
+      if (!array[i])
       {
          fprintf(stderr, "Failed to allocate memory for the columns");
 
@@ -663,7 +663,6 @@ int** allocate2DIntArray(int rows, int cols)
 
    return array; // Return the allocated 2D array
 }
-
 
 
 /**************************************************************************************************************
@@ -682,7 +681,6 @@ void free2DIntArray(int** array, int rows)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Allocates memory for a dynamic 2D array with float elements and initialize them to 0.
 *
@@ -695,7 +693,7 @@ double** allocate2DArray(int rows, int cols)
 {
    // Allocate memory for the array of pointers
    double** array = malloc(rows * sizeof(double*));
-   if (array == NULL)
+   if (!array)
    {
       fprintf(stderr, "Failed to allocate memory for the rows");
       exit(EXIT_FAILURE);
@@ -705,7 +703,7 @@ double** allocate2DArray(int rows, int cols)
    for(int i = 0; i < rows; i++)
    {
       array[i] = calloc(cols, sizeof(double)); // Allocate and initialize to 0
-      if (array[i] == NULL)
+      if (!array[i])
       {
          fprintf(stderr, "Failed to allocate memory for the columns");
 
@@ -721,7 +719,6 @@ double** allocate2DArray(int rows, int cols)
 
    return array; // Return the allocated 2D array
 }
-
 
 
 /**************************************************************************************************************
@@ -740,7 +737,6 @@ void free2DArray(double** array, int rows)
 }
 
 
-
 /**************************************************************************************************************
 * @brief Allocates memory for a dynamic 3D array and initialize all elements to 0.
 *
@@ -754,7 +750,7 @@ double*** allocate3DArray(int x, int y, int z)
 {
    // Allocate memory for the array of pointers to 2D arrays
    double ***array = malloc(x * sizeof(int **));
-   if (array == NULL)
+   if (!array)
    {
      fprintf(stderr, "Failed to allocate memory for the first dimension");
      exit(EXIT_FAILURE);
@@ -764,7 +760,7 @@ double*** allocate3DArray(int x, int y, int z)
    for(int i = 0; i < x; i++)
    {
       array[i] = malloc(y * sizeof(int *));
-      if(array[i] == NULL)
+      if(!array[i])
       {
          fprintf(stderr, "Failed to allocate memory for the second dimension");
          exit(EXIT_FAILURE);
@@ -774,7 +770,7 @@ double*** allocate3DArray(int x, int y, int z)
       for(int j = 0; j < y; j++)
       {
          array[i][j] = calloc(z, sizeof(int)); // Use calloc to initialize to 0
-         if (array[i][j] == NULL)
+         if (!array[i][j])
          {
             fprintf(stderr, "Failed to allocate memory for the third dimension");
             exit(EXIT_FAILURE);
@@ -784,7 +780,6 @@ double*** allocate3DArray(int x, int y, int z)
 
    return array; // Return the allocated 3D array
 }
-
 
 
 /**************************************************************************************************************
@@ -805,4 +800,32 @@ void free3DArray(double ***array, int x, int y)
       free(array[i]); // Free each 2D array
    }
    free(array); // Free the array of pointers to 2D arrays
+}
+
+
+/**************************************************************************************************************
+* @brief Initialices neuron positions in random or lattice distribution
+*
+* @param neurons   Array of structures of neurons.
+* @param N_neurons Total amount of neurons.
+* @param L_x       Width of the box.
+* @param L_y       Height of the box.
+* @param radius    Radius of the neurons.
+* @param mode      Random (R/r) or Lattice (L/l).
+**************************************************************************************************************/
+void initializeNeurons(Neuron *neurons, int N_neurons, double L_x, double L_y, double radius, char mode) 
+{
+   if(mode == 'R' || mode == 'r')
+   {
+      placeRandom(N_neurons, L_x, L_y, radius, neurons);
+   } 
+   else if (mode == 'L' || mode == 'l')
+   {
+      placeLattice(N_neurons, L_x, L_y, radius, neurons);
+   } 
+   else
+   {
+      fprintf(stderr, "Invalid mode\n");
+      exit(EXIT_FAILURE);
+   }
 }
