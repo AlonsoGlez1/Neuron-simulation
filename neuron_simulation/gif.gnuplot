@@ -29,7 +29,7 @@ set label 1 sprintf("Time Step: %d", 0) at screen 0.1, 0.95 font "Times-Roman,24
 plot 'neurons_dat' using 1:2:3 with circles lc rgb "blue" fill solid 0.2 notitle
     
 # Loop through the connections and plot them 
-do for [i=1:100] {
+do for [i=1:50] {
     # Update label for the current time step
     set label 1 sprintf("Time Step: %d", i) at screen 0.1, 0.95 font "Times-Roman,24" tc rgb "black"
    
