@@ -6,3 +6,6 @@ neurons_dat
 connections_dat
 neurons 
 results_dat
+
+#Gifs
+*.gif
