@@ -6,8 +6,8 @@
 #include <stdbool.h> 
 
 
-#define PI 3.141592654        // Constant for the value of pi
-#define DECAY_FACTOR 15.0      // Factor for the distance decay in connection probability
+#define PI 3.141592654        // Constant for the value of pi   
+#define DECAY_FACTOR 15.0     // Factor for the distance decay in connection probability
 #define INT_DIST_FACTOR 2.0   // Factor for the interdistance decay in connection probability
 #define SCALE_FACTOR 1.0      // Global factor to scale the probability distribution
 #define CUTOFF_RADIUS 30.0    // Maximum radius within which to consider nearby neurons
@@ -46,7 +46,7 @@ void free2DArray(double** array, int rows);
 int** allocate2DIntArray(int rows, int cols);
 void free2DIntArray(int** array, int rows);
 double** initializeDistanceMatrix(Neuron* neurons, int N_neurons);
-double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime);
+double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime, double *maxExtension);
 
 
 int main()
@@ -64,7 +64,9 @@ int main()
    printf("Random or Lattice mode (R/L): ");                scanf(" %c", &mode);
    printf("Enter the number of neurons: ");                 scanf("%d", &N_neurons);
    printf("Enter the width (L_x) of the box: ");            scanf("%lf", &L_x);
-   printf("Enter the height (L_y) of the box: ");           scanf("%lf", &L_y);
+   // printf("Enter the height (L_y) of the box: ");           scanf("%lf", &L_y);
+   L_y = L_x;
+
    printf("Enter the radius of the neurons: ");             scanf("%lf", &radius);
    printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
    printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
@@ -109,7 +111,7 @@ int main()
    /* Create and allocate memory for a 3D array to store data for each branch
       Data: 0: N_Connections. 1: Total Distance. 2: Connected Fraction. 4: End-To-EndDistance. 5: Gyration Radius
       Array gets stored as systemData[Data][TimeSteps][Branch] */
-   double ***eachBranchData = allocate3DArray(5, timeSteps, BRANCHES);
+   double ***eachBranchData = allocate3DArray(6, timeSteps, BRANCHES);
    int **neuronsList = allocate2DIntArray(BRANCHES, timeSteps + 1);
 
    // Allocate arrays to keep track of each branch's progress
@@ -223,13 +225,14 @@ int main()
             fprintf(stderr, "No valid connection found from neuron %d\n", currentNeuron);
          }
             // Store data in multiple branches on each time step
-            //neuronsList[branch][time] = currentNeuron; //el problemuki se basará aquí rey
-
             eachBranchData[0][time][branch] = N_connections[branch];
             eachBranchData[1][time][branch] = totalDistances[branch];
             eachBranchData[2][time][branch] = connectedFractions[branch];
             eachBranchData[3][time][branch] = distanceMatrix[initialNeuron][currentNeurons[branch]];
-            eachBranchData[4][time][branch] = radiusOfGyration(neurons, N_connections, neuronsList, branch, time + 1);
+
+            double maximumExtension = 0;
+            eachBranchData[4][time][branch] = radiusOfGyration(neurons, N_connections, neuronsList, branch, time + 1, &maximumExtension);
+            eachBranchData[5][time][branch] = 2.0 * maximumExtension / (sqrt(2.0) * L_x);
       }
    }  
 
@@ -243,7 +246,7 @@ int main()
       // Free allocated memory
       free(neurons);
       freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
-      free3DArray(eachBranchData, 5, timeSteps);
+      free3DArray(eachBranchData, 6, timeSteps);
       free2DIntArray(neuronsList, BRANCHES);
       free2DArray(distanceMatrix, N_neurons);
       free(currentNeurons);
@@ -256,13 +259,13 @@ int main()
    }
 
    // Connection format string for file output
-   const char *formatConnections = "%8.4lf %8.4lf %6.2lf %10.4lf %10.0lf %15.4lf %15.4lf %15.4lf %12d\n";
+   const char *formatConnections = "%8.4lf %8.4lf %6.2lf %10.4lf %10.0lf %15.4lf %15.4lf %15.4lf %15.4lf %12d\n";
    for(int branch = 0; branch < BRANCHES; branch++)
    {
-      fprintf(connectionFilePtr, "Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   GyrationRadius   TimeStep\n");
+      fprintf(connectionFilePtr, "Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   GyrationRadius   NormalizedMaxExt   TimeStep\n");
       fprintf(connectionFilePtr, formatConnections, 
               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 
-              0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0);
+              0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0);
 
       for(int time = 0; time < timeSteps; time++)
       {
@@ -270,7 +273,7 @@ int main()
          fprintf(connectionFilePtr, formatConnections,
                  neurons[neuronsList[branch][time + 1]].x, neurons[neuronsList[branch][time + 1]].y, neurons[neuronsList[branch][time + 1]].radius,
                  eachBranchData[3][time][branch], eachBranchData[0][time][branch], eachBranchData[1][time][branch],
-                 eachBranchData[2][time][branch], eachBranchData[4][time][branch], time + 1);
+                 eachBranchData[2][time][branch], eachBranchData[4][time][branch], eachBranchData[5][time][branch],  time + 1);
       }
       //Line break to separate data
       fprintf(connectionFilePtr, "\n\n\n");
@@ -288,7 +291,7 @@ int main()
       // Free allocated memory
       free(neurons);
       freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
-      free3DArray(eachBranchData, 5, timeSteps);
+      free3DArray(eachBranchData, 6, timeSteps);
       free2DArray(distanceMatrix, N_neurons);
       free2DIntArray(neuronsList, BRANCHES);
       free(currentNeurons);
@@ -329,7 +332,7 @@ int main()
    // Free allocated memory
    free(neurons);
    freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
-   free3DArray(eachBranchData, 5, timeSteps);
+   free3DArray(eachBranchData, 6, timeSteps);
    free2DArray(mergedBranchesData, 3);
    free2DArray(distanceMatrix, N_neurons);
    free2DIntArray(neuronsList, BRANCHES);
@@ -923,7 +926,7 @@ double** initializeDistanceMatrix(Neuron* neurons, int N_neurons)
 
 
 /**************************************************************************************************************
-* @brief Function that calculates the mean square radius of gyration.
+* @brief Function that calculates the mean square radius of gyration and the normalized maximum extension.
 *
 * @param neurons       Array of structures of neurons.
 * @param N_neurons     The total number of neurons.
@@ -931,7 +934,7 @@ double** initializeDistanceMatrix(Neuron* neurons, int N_neurons)
 * @param currentBranch The current branch.
 * @param currentTime   The current time step.
 **************************************************************************************************************/
-double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime)
+double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime, double *maxExtension)
 {
    // It needs at least 3 time steps or 2 connections to connect 3 neurons
    if(currentTime < 2 || N_connections[currentBranch] < 2)
@@ -960,6 +963,8 @@ double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList,
 
    // Calculates square distances
    double sumSquareDistances = 0.0;
+   double maxSquareDistance = 0.0; // Track the maximum square distance
+
    for(int time = 0; time <= currentTime; time++)
    {
       if(time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
@@ -970,8 +975,18 @@ double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList,
       double dx = neurons[neuronsList[currentBranch][time]].x - x_cm;
       double dy = neurons[neuronsList[currentBranch][time]].y - y_cm;
 
-      sumSquareDistances += dx * dx + dy * dy;
+      double squareDistance = dx * dx + dy * dy;
+      sumSquareDistances += squareDistance;
+
+      // Check for the fartest neuron from the center of mass
+      if(squareDistance > maxSquareDistance)
+      {
+        maxSquareDistance = squareDistance;
+      }
    }
+
+   // Normalized maximum extension
+   *maxExtension = sqrt(maxSquareDistance);
 
     // Mean square radius of gyration
     return sqrt(sumSquareDistances / N);
