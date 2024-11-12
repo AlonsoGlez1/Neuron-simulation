@@ -3,16 +3,16 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <stdbool.h> 
+#include <stdbool.h>
 
 
-#define PI 3.141592654        // Constant for the value of pi   
-#define DECAY_FACTOR 15.0     // Factor for the distance decay in connection probability
+#define PI 3.141592654        // Constant for the value of pi
+#define DECAY_FACTOR 50.0     // Factor for the distance decay in connection probability
 #define INT_DIST_FACTOR 2.0   // Factor for the interdistance decay in connection probability
 #define SCALE_FACTOR 1.0      // Global factor to scale the probability distribution
-#define CUTOFF_RADIUS 30.0    // Maximum radius within which to consider nearby neurons
+#define CUTOFF_RADIUS 20.0    // Maximum radius within which to consider nearby neurons
 #define PACKING_FRACTION 0.5  // Maximum packing fraction of the system (area occupied / total area)
-#define BRANCHES 3            // Number of branches per initial neuron
+#define BRANCHES 2            // Number of branches per initial neuron
 
 
 // Define a structure to represent a neuron
@@ -34,9 +34,9 @@ void writeNeuronData(FILE *file, Neuron *neurons, int N_neurons);
 double Distance(Neuron p1, Neuron p2);
 bool isOverlapping(Neuron *neurons, int N_neurons, Neuron newNeuron);
 float setInside(float max, float min);
-bool isBetween(int currentNeuron, int interNeuron, int candidateNeuron, double **distanceMatrix);
-double connectionProbability(double dist, double intDistFactor);
-double interDistance(Neuron p1, Neuron p2, Neuron p3);
+bool isBetween(int *currentNeuron, int *interNeuron, int *candidateNeuron, double **distanceMatrix);
+double connectionProbability(double *dist, double *intDistFactor, double *maxDistance);
+double interDistance(int *currentParticle, int *candidateParticle, int *interParticle, double **distanceMatrix);
 void findNearbyParticles(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, double **distanceMatrix);
 void freeNearbyParticles(int **nearbyNeurons, int N_neurons, int *nearbyCounts);
 double*** allocate3DArray(int x, int y, int z);
@@ -62,18 +62,22 @@ int main()
 
    // Read the number of neurons, the dimensions of the box and neuron radii
    printf("Random or Lattice mode (R/L): ");                scanf(" %c", &mode);
-   printf("Enter the number of neurons: ");                 scanf("%d", &N_neurons);
-   printf("Enter the width (L_x) of the box: ");            scanf("%lf", &L_x);
-   // printf("Enter the height (L_y) of the box: ");           scanf("%lf", &L_y);
-   L_y = L_x;
-
-   printf("Enter the radius of the neurons: ");             scanf("%lf", &radius);
-   printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
-   printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
-
+   if(mode != 'R' || mode != 'r' || mode != 'L' || mode != 'l')
+   {
+      fprintf(stderr, "Invalid mode\n");
+      exit(EXIT_FAILURE);
+   }
 
    // Check the packing fraction to ensure it isn't too dense
+   printf("Enter the number of neurons: ");                 scanf("%d", &N_neurons);
+   printf("Enter the width (L_x) of the box: ");            scanf("%lf", &L_x);
+   L_y = L_x;
+   printf("Enter the radius of the neurons: ");             scanf("%lf", &radius);
+
    packingFraction(N_neurons, L_x, L_y, radius);
+
+   printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
+   printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
 
 
    // Allocate memory for the neurons
@@ -100,6 +104,8 @@ int main()
 ||                                     INITIALIZE NEURON CONNECTIONS                                     ||
 +=========================================================================================================+
 */
+   double maxDistance = sqrt(2) * (L_x - 2*radius); // Diagonal of the box, maximum distance possible
+
    // Calculate distances between all neurons and store them
    double **distanceMatrix = initializeDistanceMatrix(neurons, N_neurons);
 
@@ -109,7 +115,7 @@ int main()
    findNearbyParticles(N_neurons, &nearbyNeurons, &nearbyCounts, distanceMatrix);
 
    /* Create and allocate memory for a 3D array to store data for each branch
-      Data: 0: N_Connections. 1: Total Distance. 2: Connected Fraction. 4: End-To-EndDistance. 5: Gyration Radius
+      Data: 0: N_Connections. 1: Total Distance. 2: Connected Fraction. 4: End-To-EndDistance. 5: Gyration Radius. 6: Maximum Extension.
       Array gets stored as systemData[Data][TimeSteps][Branch] */
    double ***eachBranchData = allocate3DArray(6, timeSteps, BRANCHES);
    int **neuronsList = allocate2DIntArray(BRANCHES, timeSteps + 1);
@@ -159,37 +165,34 @@ int main()
             {
                double intDistFactor = 1.0; // Reduction factor by intermediate neurons
 
-               // Loop through common nearby neurons for interdistance calculation
+               // Loop through nearby neurons for interdistance calculation
                for(int j = 0; j < nearbyCounts[currentNeuron]; j++)
                {
                   int interNeuron = nearbyNeurons[currentNeuron][j];
-
-                  // Check if the neuron is also nearby to the candidate
-                  for(int k = 0; k < nearbyCounts[candidateNeuron]; k++)
+                  if(interNeuron == initialNeuron)
                   {
-                     if(interNeuron == nearbyNeurons[candidateNeuron][k]
-                        && interNeuron != currentNeuron)
-                     {
-                        // Calculate the interdistance
-                        double interdistance = interDistance(neurons[currentNeuron], neurons[candidateNeuron], neurons[interNeuron]);
+                     continue; // Skip current loop
+                  }
 
-                        // Adjust the connection probability based on intermediate neurons
-                        if(interdistance < radius
-                           && isBetween(currentNeuron, interNeuron, candidateNeuron, distanceMatrix))
+                  // Check if the interNeuron is in the space between the current and the candidate neurons
+                  if(isBetween(&currentNeuron, &interNeuron, &candidateNeuron, distanceMatrix))
+                  {
+                     // Calculate the interdistance
+                     double interdistance = interDistance(&currentNeuron, &candidateNeuron, &interNeuron, distanceMatrix);
+
+                     // Adjust the connection probability based on intermediate neurons
+                     if(interdistance < radius)
+                     {
+                        if(interdistance <= (0.5 * radius) && neurons[interNeuron].synapses < N_synapses - 1)
                         {
-                           if(interdistance <= (0.5 * radius)
-                              && interNeuron != initialNeuron
-                              && neurons[interNeuron].synapses < N_synapses - 1)
-                           {
-                              // The intermediate neuron becomes the new candidate
-                              candidateNeuron = interNeuron;
-                              intDistFactor = 1.0;
-                              j = k = 0;
-                           }
-                           else
-                           {
-                              intDistFactor += interdistance / radius;
-                           }
+                           // The intermediate neuron becomes the new candidate
+                           candidateNeuron = interNeuron;
+                           intDistFactor = 1.0;
+                           j = 0;
+                        }
+                        else
+                        {
+                           intDistFactor += interdistance / radius;
                         }
                      }
                   }
@@ -197,7 +200,7 @@ int main()
 
                // Probability check for connection based on distance
                double dist = distanceMatrix[currentNeuron][candidateNeuron];
-               if(connectionProbability(dist, intDistFactor) > (float)rand() / RAND_MAX)
+               if(connectionProbability(&dist, &intDistFactor, &maxDistance) > (float)rand() / RAND_MAX)
                {
                   nextNeuron = candidateNeuron;
                   break;
@@ -234,7 +237,7 @@ int main()
             eachBranchData[4][time][branch] = radiusOfGyration(neurons, N_connections, neuronsList, branch, time + 1, &maximumExtension);
             eachBranchData[5][time][branch] = 2.0 * maximumExtension / (sqrt(2.0) * L_x);
       }
-   }  
+   }
 
 
    // Open the file for writing neuron connections
@@ -242,7 +245,7 @@ int main()
    if (!connectionFilePtr)
    {
       fprintf(stderr, "\nFailed to open connection data file for writing\n");
-      
+
       // Free allocated memory
       free(neurons);
       freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
@@ -254,7 +257,7 @@ int main()
       free(totalDistances);
       free(endToEndDistances);
       free(connectedFractions);
-   
+
       return EXIT_FAILURE;
    }
 
@@ -263,8 +266,8 @@ int main()
    for(int branch = 0; branch < BRANCHES; branch++)
    {
       fprintf(connectionFilePtr, "Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   GyrationRadius   NormalizedMaxExt   TimeStep\n");
-      fprintf(connectionFilePtr, formatConnections, 
-              neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius, 
+      fprintf(connectionFilePtr, formatConnections,
+              neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius,
               0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0);
 
       for(int time = 0; time < timeSteps; time++)
@@ -366,7 +369,7 @@ int main()
 void packingFraction(int N_neurons, double L_x, double L_y, double radius)
 {
    double packingfraction = (N_neurons * PI * pow(radius, 2)) / (L_x * L_y);
-   
+
    // Check if the packing fraction exceeds the predefined limit
    if(packingfraction >= PACKING_FRACTION)
    {
@@ -417,7 +420,7 @@ void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *n
 * @param neurons   Array of structures of neurons.
 **************************************************************************************************************/
 void placeLattice(int N_neurons, double L_x, double L_y, double radius, Neuron *neurons)
-{   
+{
    int numRows = (int)sqrt(N_neurons);
    int numCols = (N_neurons + numRows - 1) / numRows; // Handles non-perfect squares
 
@@ -486,7 +489,7 @@ double Distance(Neuron p1, Neuron p2)
 {
    double dx = p1.x - p2.x;
    double dy = p1.y - p2.y;
-   
+
    return sqrt(dx * dx + dy * dy);
 }
 
@@ -501,10 +504,10 @@ double Distance(Neuron p1, Neuron p2)
 *
 * @returns True (1) if p2 is between p1 and p3, else, False (0).
 **************************************************************************************************************/
-bool isBetween(int currentNeuron, int interNeuron, int candidateNeuron, double **distanceMatrix)
+bool isBetween(int *currentNeuron, int *interNeuron, int *candidateNeuron, double **distanceMatrix)
 {
-   if(distanceMatrix[currentNeuron][candidateNeuron] > distanceMatrix[currentNeuron][interNeuron] 
-      && distanceMatrix[currentNeuron][candidateNeuron] > distanceMatrix[interNeuron][candidateNeuron])
+   if(distanceMatrix[*currentNeuron][*candidateNeuron] > distanceMatrix[*currentNeuron][*interNeuron] 
+      && distanceMatrix[*currentNeuron][*candidateNeuron] > distanceMatrix[*interNeuron][*candidateNeuron])
    {
      return true;
    }
@@ -554,38 +557,37 @@ float setInside(float max, float min)
 *
 * @param dist          The distance between the two neurons.
 * @param intDistFactor A factor based on intermediate distances between neurons.
+* @param maxDistance   The maximum possible distance within the box.
 *
 * @return A value between 0 and 1, where larger distances reduces the connection probability.
 **************************************************************************************************************/
-double connectionProbability(double dist, double intDistFactor)
+double connectionProbability(double *dist, double *intDistFactor, double *maxDistance)
 {
-   if(dist >= CUTOFF_RADIUS)
-   {
-      return 0.0;
-   }
-
-   return SCALE_FACTOR * (1 - dist / CUTOFF_RADIUS) * exp(- DECAY_FACTOR * (dist / CUTOFF_RADIUS) - INT_DIST_FACTOR * intDistFactor);
+   return SCALE_FACTOR * (1 - (*dist) / (*maxDistance)) * exp(- DECAY_FACTOR * ((*dist) / (*maxDistance)) - INT_DIST_FACTOR * (*intDistFactor));
 }
 
 
 /**************************************************************************************************************
 * @brief Computes the perpendicular distance between a neuron and a pair of neurons.
 *
-* @param p1 The first neuron, it connects to the second one
-* @param p2 The second neuron, it connects to the first one.
-* @param p3 The third neuron.
+* @param currentNeuron   The first neuron, it connects to the candidate one
+* @param candidateNeuron The second neuron, it connects to the first currentNeuron.
+* @param interNeuron     The third neuron, it could be between the first and the second one.
+* @param distanceMatrix  A 2D matrix that stores the distance between every pair of neurons.
 *
 * @return The calculated interdistance between the three neurons.
 **************************************************************************************************************/
-double interDistance(Neuron p1, Neuron p2, Neuron p3)
+double interDistance(int *currentNeuron, int *candidateNeuron, int *interNeuron, double **distanceMatrix)
 {
-   double lineLength = Distance(p1 , p2);
-   if(lineLength < 1e-9)
-   {
-     return Distance(p1, p3);
-   }
-   return fabs((p2.y - p1.y) * p3.x - (p2.x - p1.x) * p3.y + p2.x * p1.y - p2.y * p1.x) / lineLength;
+   double d12 = distanceMatrix[*currentNeuron][*candidateNeuron];
+   double d13 = distanceMatrix[*currentNeuron][*interNeuron];
+   double d23 = distanceMatrix[*candidateNeuron][*interNeuron];
+
+   double s = (d12 + d13 + d23) / 2.0;
+   double area = sqrt(s * (s - d12) * (s - d13) * (s - d23));
+   return (2.0 * area) / d12;
 }
+
 
 
 /**************************************************************************************************************
@@ -738,7 +740,7 @@ void free2DIntArray(int** array, int rows)
 * @return The array with memory allocated and all elements initialized to 0.
 **************************************************************************************************************/
 double** allocate2DArray(int rows, int cols)
-{   
+{
    // Allocate memory for the array of pointers
    double** array = (double **)calloc(rows, sizeof(double*));
    if(!array)
@@ -888,15 +890,10 @@ void initializeNeurons(Neuron *neurons, int N_neurons, double L_x, double L_y, d
    if(mode == 'R' || mode == 'r')
    {
       placeRandom(N_neurons, L_x, L_y, radius, neurons);
-   } 
+   }
    else if (mode == 'L' || mode == 'l')
    {
       placeLattice(N_neurons, L_x, L_y, radius, neurons);
-   } 
-   else
-   {
-      fprintf(stderr, "Invalid mode\n");
-      exit(EXIT_FAILURE);
    }
 }
 
@@ -933,6 +930,7 @@ double** initializeDistanceMatrix(Neuron* neurons, int N_neurons)
 * @param neuronsList   A list of ordered neuron connections per branch per time step.
 * @param currentBranch The current branch.
 * @param currentTime   The current time step.
+* @param maxExtension  Maximum extension of the branch, from the center of mass. Passed by reference.
 **************************************************************************************************************/
 double radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime, double *maxExtension)
 {
