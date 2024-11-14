@@ -6,13 +6,15 @@
 #include <stdbool.h>
 
 
-#define PI 3.141592654        // Constant for the value of pi
-#define DECAY_FACTOR 50.0     // Factor for the distance decay in connection probability
-#define INT_DIST_FACTOR 2.0   // Factor for the interdistance decay in connection probability
-#define SCALE_FACTOR 1.0      // Global factor to scale the probability distribution
-#define CUTOFF_RADIUS 20.0    // Maximum radius within which to consider nearby neurons
-#define PACKING_FRACTION 0.5  // Maximum packing fraction of the system (area occupied / total area)
-#define BRANCHES 2            // Number of branches per initial neuron
+#define PI 3.141592654            // Constant for the value of pi
+#define DECAY_FACTOR 50.0         // Factor for the distance decay in connection probability
+#define INT_DIST_FACTOR 2.0       // Factor for the interdistance decay in connection probability
+#define SCALE_FACTOR 1.0          // Global factor to scale the probability distribution
+#define CUTOFF_RADIUS 20.0        // Maximum radius within which to consider nearby neurons
+#define PACKING_FRACTION 0.5      // Maximum packing fraction of the system (area occupied / total area)
+#define BRANCHES 2                // Number of branches per initial neuron
+#define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
+#define ONLY_GENERATE_LIST true  // Select false to run the whole program, select true to only generate neurons.
 
 
 // Define a structure to represent a neuron
@@ -54,57 +56,113 @@ int main()
    int N_neurons, timeSteps, N_synapses; // Number of neurons, timeSteps for connections and synapses
    double L_x, L_y, radius;              // Physical dimensions
    char mode;                            // Mode (random|lattice)
-
+   Neuron *neurons = NULL;               // List of structures of neurons
 
    // Seed the random number generator
    srand(time(NULL));
 
-
-   // Read the number of neurons, the dimensions of the box and neuron radii
-   printf("Random or Lattice mode (R/L): ");                scanf(" %c", &mode);
-   if(mode != 'R' || mode != 'r' || mode != 'L' || mode != 'l')
-   {
-      fprintf(stderr, "Invalid mode\n");
-      exit(EXIT_FAILURE);
-   }
-
-   // Check the packing fraction to ensure it isn't too dense
-   printf("Enter the number of neurons: ");                 scanf("%d", &N_neurons);
-   printf("Enter the width (L_x) of the box: ");            scanf("%lf", &L_x);
-   L_y = L_x;
-   printf("Enter the radius of the neurons: ");             scanf("%lf", &radius);
-
-   packingFraction(N_neurons, L_x, L_y, radius);
-
-   printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
-   printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
-
-
-   // Allocate memory for the neurons
-   Neuron *neurons = (Neuron *)calloc(N_neurons, sizeof(Neuron));
-   if(!neurons)
-   {
-      fprintf(stderr, "Memory allocation failed\n");
-      return EXIT_FAILURE;
-   }
-
-
    // Initialize neuron positions
-   initializeNeurons(neurons, N_neurons, L_x, L_y, radius, mode);
+   if(IMPORT_NEURONS_LIST)
+   {
+      FILE *neuronFilePtr = fopen("neurons_dat", "r"); // Import positions from a file
+      if (!neuronFilePtr)
+      {
+         perror("Error opening file for reading.\n");
+         exit(EXIT_FAILURE);
+      }
 
+      char header[100]; // Store header file
+      if(!fgets(header, sizeof(header), neuronFilePtr))
+      {
+         perror("Error reading header");
+         fclose(neuronFilePtr);
 
-   // Write the neuron positions and radii to a file
-   FILE *neuronFilePtr = fopen("neurons_dat", "w");
-   writeNeuronData(neuronFilePtr, neurons, N_neurons);
-   fclose(neuronFilePtr);
+         return EXIT_FAILURE;
+      }
 
+      // Count number of neurons (lines) in the file
+      N_neurons = 0;
+      char buffer[100];
+      while(fgets(buffer, sizeof(buffer), neuronFilePtr))
+      {
+         N_neurons++;
+      }
+      rewind(neuronFilePtr); // Reset file pointer to the beggining 
+      fgets(header, sizeof(header), neuronFilePtr); //Skip the header
+
+      // Allocate memory for the neurons
+      neurons = (Neuron *)calloc(N_neurons, sizeof(Neuron));
+      if(!neurons)
+      {
+         fprintf(stderr, "Memory allocation failed\n");
+         return EXIT_FAILURE;
+      }
+
+      // Read and store data into the list of structures
+      for(int i = 0; i < N_neurons; i++)
+      {
+         if(fscanf(neuronFilePtr, "%lf %lf %lf", &neurons[i].x, &neurons[i].y, &neurons[i].radius) != 3)
+         {
+            fprintf(stderr, "Error reading line %d\n", i + 1);
+            free(neurons);
+            fclose(neuronFilePtr);
+
+            return EXIT_FAILURE;
+         }
+      }
+      fclose(neuronFilePtr);
+
+      printf("Enter the width (L_x) of the box: ");            scanf("%lf", &L_x);
+      L_y = L_x;
+      radius = neurons[0].radius;
+      packingFraction(N_neurons, L_x, L_y, radius);
+
+      printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
+      printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
+   }
+   else
+   {
+      // Read the number of neurons, the dimensions of the box and neuron radii
+      printf("Random or Lattice mode (R/L): ");     scanf(" %c", &mode);
+      // Check the packing fraction to ensure it isn't too dense
+      printf("Enter the number of neurons: ");      scanf("%d", &N_neurons);
+      printf("Enter the width (L_x) of the box: "); scanf("%lf", &L_x);
+      printf("Enter the radius of the neurons: ");  scanf("%lf", &radius);
+      L_y = L_x;
+      packingFraction(N_neurons, L_x, L_y, radius);
+
+      // Allocate memory for the neurons
+      neurons = (Neuron *)calloc(N_neurons, sizeof(Neuron));
+      if(!neurons)
+      {
+         fprintf(stderr, "Memory allocation failed\n");
+         return EXIT_FAILURE;
+      }
+      
+      //Generate and store the positions list
+      initializeNeurons(neurons, N_neurons, L_x, L_y, radius, mode);
+      
+      // Write the neuron positions and radii to a file
+      FILE *neuronFilePtr = fopen("neurons_dat", "w");
+      writeNeuronData(neuronFilePtr, neurons, N_neurons);
+      fclose(neuronFilePtr);
+
+      if(ONLY_GENERATE_LIST)
+      {
+         printf("Neuron data saved to neurons_dat\n");
+         return EXIT_SUCCESS;
+      }
+
+      printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
+      printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
+   }  
 
 /*
 +=========================================================================================================+
 ||                                     INITIALIZE NEURON CONNECTIONS                                     ||
 +=========================================================================================================+
 */
-   double maxDistance = sqrt(2) * (L_x - 2*radius); // Diagonal of the box, maximum distance possible
+   double maxDistance = sqrt(2.0) * (L_x - 2*radius); // Diagonal of the box, maximum distance possible
 
    // Calculate distances between all neurons and store them
    double **distanceMatrix = initializeDistanceMatrix(neurons, N_neurons);
@@ -235,7 +293,7 @@ int main()
 
             double maximumExtension = 0;
             eachBranchData[4][time][branch] = radiusOfGyration(neurons, N_connections, neuronsList, branch, time + 1, &maximumExtension);
-            eachBranchData[5][time][branch] = 2.0 * maximumExtension / (sqrt(2.0) * L_x);
+            eachBranchData[5][time][branch] = 2.0 * maximumExtension / (sqrt(2.0) * maxDistance);
       }
    }
 
@@ -895,6 +953,11 @@ void initializeNeurons(Neuron *neurons, int N_neurons, double L_x, double L_y, d
    {
       placeLattice(N_neurons, L_x, L_y, radius, neurons);
    }
+   else
+   {
+      fprintf(stderr, "Invalid mode\n");
+      exit(EXIT_FAILURE);
+   }
 }
 
 
@@ -913,6 +976,11 @@ double** initializeDistanceMatrix(Neuron* neurons, int N_neurons)
       for (int j = i + 1; j < N_neurons; j++)
       {
          double distance = Distance(neurons[i], neurons[j]);
+         if(distance < 1e-5)
+         {
+            distance = 0.0;
+         }
+
          distanceMatrix[i][j] = distance;
          distanceMatrix[j][i] = distance;  // Symmetric entry
       }
