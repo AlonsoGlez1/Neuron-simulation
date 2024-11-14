@@ -1,5 +1,5 @@
 # Set the output format and file name
-set terminal gif animate size 1200,1200 delay 50
+set terminal gif animate size 1500,1500 delay 50
 set output '500.gif'
 
 # Set the plot range and ratio
