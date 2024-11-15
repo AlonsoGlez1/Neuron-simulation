@@ -360,7 +360,7 @@ int main()
 
    // Free allocated memory
    free(neurons);
-   freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
+   //freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
    freeNearbyParticles(nearbyNeurons, N_neurons, nearbyCounts);
    free3DArray(eachBranchData, 6, timeSteps);
    free2DArray(mergedBranchesData, 3);
@@ -691,7 +691,7 @@ double connectionProbability(double *dist, double *intDistFactor, double *maxDis
 double interDistance(int *currentNeuron, int *candidateNeuron, int *interNeuron, double **distanceMatrix, double ***interDistanceCache)
 {
    // Check if the interdistance is already calculated
-   if (interDistanceCache[*currentNeuron][*candidateNeuron][*interNeuron] > 0)
+   if(interDistanceCache[*currentNeuron][*candidateNeuron][*interNeuron] > 0)
    {
       return interDistanceCache[*currentNeuron][*candidateNeuron][*interNeuron];
    }
@@ -740,14 +740,6 @@ void findNearbyParticles(int N_neurons, int ***nearbyNeurons, int **nearbyCounts
       if(!(*nearbyNeurons)[i])
       {
          fprintf(stderr, "Failed to allocate memory for nearby neurons list\n");
-         // Free previously allocated memory before exiting
-         for (int k = 0; k < i; ++k)
-         {
-            free((*nearbyNeurons)[k]);
-         }
-         free(*nearbyNeurons);
-         free(*nearbyCounts);
-         
          exit(EXIT_FAILURE);
       }
    }
@@ -1011,62 +1003,76 @@ void free3DArray(double ***array, int x, int y)
 }
 
 
+/**************************************************************************************************************
+* @brief Pendiente de escribir
+*
+* @param Pendiente  Pediente de escribir
+* @param Pendiente  Pediente de escribir
+* 
+* @return Pendiente  Pediente de escribir
+**************************************************************************************************************/
 double ***initializeInterdistanceCache(int N_neurons, int *nearbyCounts)
 {
-    // Allocate a 3D array to store interdistances
-    double ***interdistanceCache = (double ***)calloc(N_neurons, sizeof(double **));
-    if (!interdistanceCache)
-    {
-        fprintf(stderr, "Memory allocation failed for interdistance cache.\n");
-        exit(EXIT_FAILURE);
-    }
+   // Allocate a 3D array to store interdistances
+   double ***interdistanceCache = (double ***)calloc(N_neurons, sizeof(double **));
+   if(!interdistanceCache)
+   {
+      fprintf(stderr, "Memory allocation failed for interdistance cache.\n");
+      exit(EXIT_FAILURE);
+   }
 
-    for (int i = 0; i < N_neurons; i++)
-    {
-        interdistanceCache[i] = (double **)calloc(N_neurons, sizeof(double *));
-        if (!interdistanceCache[i])
-        {
-            fprintf(stderr, "Memory allocation failed for interdistance cache row %d.\n", i);
-            // Free previously allocated memory
-            for (int k = 0; k < i; k++)
+   for (int i = 0; i < N_neurons; i++)
+   {
+      interdistanceCache[i] = (double **)calloc(nearbyCounts[i], sizeof(double *));
+      if (!interdistanceCache[i])
+      {
+         fprintf(stderr, "Memory allocation failed for interdistance cache row %d.\n", i);
+         // Free previously allocated memory
+         for (int k = 0; k < i; k++)
+         {
+            free(interdistanceCache[k]);
+         }
+         free(interdistanceCache);
+         exit(EXIT_FAILURE);
+      }
+      for(int j = 0; j < N_neurons; j++)
+      {
+         interdistanceCache[i][j] = (double *)calloc(1, sizeof(double));
+         if(!interdistanceCache[i][j])
+         {
+            fprintf(stderr, "Memory allocation failed for interdistance cache column.\n");
+            // Free previously allocated memory in this row
+            for (int k = 0; k < j; k++)
             {
-                free(interdistanceCache[k]);
+               free(interdistanceCache[i][k]);
+            }
+            free(interdistanceCache[i]);
+            // Free all previously allocated rows
+            for(int k = 0; k < i; k++)
+            {
+               for(int l = 0; l < nearbyCounts[k]; l++)
+               {
+                  free(interdistanceCache[k][l]);
+               }
+               free(interdistanceCache[k]);
             }
             free(interdistanceCache);
             exit(EXIT_FAILURE);
-        }
-
-        for (int j = 0; j < N_neurons; j++) // Use nearbyCounts[i], not N_neurons
-        {
-            interdistanceCache[i][j] = (double *)calloc(N_neurons, sizeof(double));
-            if (!interdistanceCache[i][j])
-            {
-                fprintf(stderr, "Memory allocation failed for interdistance cache column.\n");
-                // Free previously allocated memory in this row
-                for (int k = 0; k < j; k++)
-                {
-                    free(interdistanceCache[i][k]);
-                }
-                free(interdistanceCache[i]);
-
-                // Free all previously allocated rows
-                for (int k = 0; k < i; k++)
-                {
-                    for (int l = 0; l < N_neurons; l++)
-                    {
-                        free(interdistanceCache[k][l]);
-                    }
-                    free(interdistanceCache[k]);
-                }
-                free(interdistanceCache);
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
-    return interdistanceCache;
+         }
+      }
+   }
+   
+   return interdistanceCache;
 }
 
 
+/**************************************************************************************************************
+* @brief Pendiente de escribir
+*
+* @param Pendiente  Pediente de escribir
+* @param Pendiente  Pediente de escribir
+* @param Pendiente  Pediente de escribir
+**************************************************************************************************************/
 void freeInterdistanceCache(double ***array, int N_neurons, int *nearbyCounts)
 {
     // Free the 3D array: iterate through neurons (i) and their neighbors (j)
