@@ -41,9 +41,9 @@ bool isOverlapping(Neuron *neurons, int N_neurons, Neuron newNeuron);
 float setInside(float max, float min);
 bool isBetween(int *currentNeuron, int *interNeuron, int *candidateNeuron, double **distanceMatrix);
 double connectionProbability(double *dist, double *intDistFactor, double *maxDistance);
-double interDistance(int *currentParticle, int *candidateParticle, int *candidateParticleIndex, int *interParticle, int *interParticeIndex, double **distanceMatrix, double ***interDistanceCache);
-void findNearbyParticles(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, double **distanceMatrix);
-void freeNearbyParticles(int **nearbyNeurons, int N_neurons);
+double interDistance(int *currentNeuron, int *candidateNeuron, int *candidateNeuronIndex, int *interNeuron, int *interNeuronIndex, double **distanceMatrix, double ***interDistanceCache);
+void findNearbyNeurons(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, double **distanceMatrix);
+void freeNearbyNeurons(int **nearbyNeurons, int N_neurons);
 double*** allocate3DArray(int x, int y, int z);
 void free3DArray(double ***array, int x, int y);
 double** allocate2DArray(int rows, int cols);
@@ -133,9 +133,9 @@ int main()
    // Create an array of arrays (list of nearby neurons)
    int **nearbyNeurons = NULL;
    int *nearbyCounts = NULL;
-   findNearbyParticles(N_neurons, &nearbyNeurons, &nearbyCounts, distanceMatrix);
+   findNearbyNeurons(N_neurons, &nearbyNeurons, &nearbyCounts, distanceMatrix);
 
-   // Save intedistance calculations for every particle to avoid redundant calculations
+   // Save intedistance calculations for every neuron to avoid redundant calculations
    double ***interDistanceCache = initializeInterdistanceCache(N_neurons, nearbyCounts);
 
    /* Create and allocate memory for a 3D array to store data for each branch
@@ -155,7 +155,7 @@ int main()
    {
       fprintf(stderr, "Memory allocation failed for branch data\n");
       free(neurons);
-      freeNearbyParticles(nearbyNeurons, N_neurons);
+      freeNearbyNeurons(nearbyNeurons, N_neurons);
       return EXIT_FAILURE;
    }
 
@@ -278,7 +278,7 @@ int main()
 
       // Free allocated memory
       free(neurons);
-      freeNearbyParticles(nearbyNeurons, N_neurons);
+      freeNearbyNeurons(nearbyNeurons, N_neurons);
       free3DArray(eachBranchData, 6, timeSteps);
       freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
       free2DIntArray(neuronsList, BRANCHES);
@@ -324,7 +324,7 @@ int main()
 
       // Free allocated memory
       free(neurons);
-      freeNearbyParticles(nearbyNeurons, N_neurons);
+      freeNearbyNeurons(nearbyNeurons, N_neurons);
       free3DArray(eachBranchData, 6, timeSteps);
       freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
       free2DArray(distanceMatrix, N_neurons);
@@ -366,7 +366,7 @@ int main()
 
    // Free allocated memory
    free(neurons);
-   freeNearbyParticles(nearbyNeurons, N_neurons);
+   freeNearbyNeurons(nearbyNeurons, N_neurons);
    freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
    free3DArray(eachBranchData, 6, timeSteps);
    free2DArray(mergedBranchesData, 3);
@@ -507,8 +507,8 @@ void readNeuronData(FILE *file, Neuron* neurons, int N_neurons)
 **************************************************************************************************************/
 void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *neurons)
 {
-   int placedParticles = 0;
-      while(placedParticles < N_neurons)
+   int placedNeurons = 0;
+      while(placedNeurons < N_neurons)
       {
          Neuron newNeuron;
          newNeuron.x = setInside(L_x,radius);
@@ -517,10 +517,10 @@ void placeRandom(int N_neurons, double L_x, double L_y, double radius, Neuron *n
          newNeuron.synapses = 0;
 
          //Check for overlap with existing neurons
-         if(!isOverlapping(neurons, placedParticles, newNeuron))
+         if(!isOverlapping(neurons, placedNeurons, newNeuron))
          {
-            neurons[placedParticles] = newNeuron;
-            placedParticles++;
+            neurons[placedNeurons] = newNeuron;
+            placedNeurons++;
          }
       }
 }
@@ -550,18 +550,18 @@ void placeLattice(int N_neurons, double L_x, double L_y, double radius, Neuron *
       exit(EXIT_FAILURE);
    }
 
-   int placedParticles = 0;
+   int placedNeurons = 0;
    for(int i = 0; i < numRows; ++i)
    {
        for(int j = 0; j < numCols; ++j)
        {
-         if(placedParticles < N_neurons)
+         if(placedNeurons < N_neurons)
          {
-            neurons[placedParticles].x = radius + j * dx;
-            neurons[placedParticles].y = radius + i * dy;
-            neurons[placedParticles].radius = radius;
-            neurons[placedParticles].synapses = 0;
-            placedParticles++;
+            neurons[placedNeurons].x = radius + j * dx;
+            neurons[placedNeurons].y = radius + i * dy;
+            neurons[placedNeurons].radius = radius;
+            neurons[placedNeurons].synapses = 0;
+            placedNeurons++;
          }
        }
    }
@@ -686,13 +686,13 @@ double connectionProbability(double *dist, double *intDistFactor, double *maxDis
 /**************************************************************************************************************
 * @brief Computes the perpendicular distance between a neuron and a pair of neurons.
 *
-* @param currentNeuron   The first neuron, it connects to the candidate one
-* @param candidateNeuron The second neuron, it connects to the first currentNeuron.
+* @param currentNeuron        The first neuron, it connects to the candidate one
+* @param candidateNeuron      The second neuron, it connects to the first currentNeuron.
 * @param candidateNeuronIndex The index to the second neuron, local to the nearbyNeurons list.
-* @param interNeuron     The third neuron, it could be between the first and the second one.
-* @param interNeuronIndex The index to the third neuron, local to the nearbyNeurons list.
-* @param distanceMatrix  A 2D matrix that stores the distance between every pair of neurons.
-* @param interDistanceCache A 3D matrix that stores the interdistance between neurons.
+* @param interNeuron          The third neuron, it could be between the first and the second one.
+* @param interNeuronIndex     The index to the third neuron, local to the nearbyNeurons list.
+* @param distanceMatrix       A 2D matrix that stores the distance between every pair of neurons.
+* @param interDistanceCache   A 3D matrix that stores the interdistance between neurons.
 *
 * @return The calculated interdistance between the three neurons.
 **************************************************************************************************************/
@@ -728,7 +728,7 @@ double interDistance(int *currentNeuron, int *candidateNeuron, int *candidateNeu
 * @param nearbyCounts   A pointer to an array storing the number of nearby neurons for each neuron.
 * @param distanceMatrix A 2D matrix that stores the distance between every pair of neurons.
 **************************************************************************************************************/
-void findNearbyParticles(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, double **distanceMatrix)
+void findNearbyNeurons(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, double **distanceMatrix)
 {
    // Allocate memory for nearby neurons list and counts
    *nearbyNeurons = (int **)calloc(N_neurons, sizeof(int *));
@@ -787,7 +787,7 @@ void findNearbyParticles(int N_neurons, int ***nearbyNeurons, int **nearbyCounts
 * @param nearbyNeurons The list of nearby neurons for each neuron.
 * @param N_neurons     The total number of neurons.
 **************************************************************************************************************/
-void freeNearbyParticles(int **nearbyNeurons, int N_neurons)
+void freeNearbyNeurons(int **nearbyNeurons, int N_neurons)
 {
    for(int i = 0; i < N_neurons; ++i)
    {
@@ -1010,12 +1010,12 @@ void free3DArray(double ***array, int x, int y)
 
 
 /**************************************************************************************************************
-* @brief Pendiente de escribir
+* @brief Function that allocates a 3D array of interdistances to avoid redundant calculations.
 *
-* @param Pendiente  Pediente de escribir
-* @param Pendiente  Pediente de escribir
+* @param N_neurons    The total number of neurons.
+* @param nearbyCounts A pointer to an array storing the number of nearby neurons for each neuron.
 * 
-* @return Pendiente  Pediente de escribir
+* @return The allocated 3D array.
 **************************************************************************************************************/
 double ***initializeInterdistanceCache(int N_neurons, int *nearbyCounts)
 {
@@ -1073,12 +1073,11 @@ double ***initializeInterdistanceCache(int N_neurons, int *nearbyCounts)
 
 
 /**************************************************************************************************************
-* @brief Pendiente de escribir
+* @brief Function that frees the 3D array allocated in the initializeInterdistanceCache function.
 *
-* @param Pendiente  Pediente de escribir
-* @param Pendiente  Pediente de escribir
-* @param Pendiente  Pediente de escribir
-* @param nearbyCounts  The array storing the count of nearby neurons for each neuron.
+* @param interdistanceCache The 3D array that stores the calculated interdistances.
+* @param N_neurons          The total number of neurons.
+* @param nearbyCounts       A pointer to an array storing the number of nearby neurons for each neuron.
 **************************************************************************************************************/
 void freeInterdistanceCache(double ***interdistanceCache, int N_neurons, int *nearbyCounts)
 {
@@ -1093,8 +1092,8 @@ void freeInterdistanceCache(double ***interdistanceCache, int N_neurons, int *ne
       // Free the row itself
       free(interdistanceCache[i]);
    }
-   // Free the main array
    free(interdistanceCache);
+
    free(nearbyCounts);
 }
 
