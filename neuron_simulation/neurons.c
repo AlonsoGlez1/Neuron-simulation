@@ -10,15 +10,12 @@
 #define DECAY_FACTOR 80.0         // Factor for the distance decay in connection probability
 #define INT_DIST_FACTOR 8.0       // Factor for the interdistance decay in connection probability
 #define SCALE_FACTOR 9.0          // Global factor to scale the probability distribution
-//#define CUTOFF_RADIUS 37.5        // Maximum radius within which to consider nearby neurons
 #define PACKING_FRACTION 0.55     // Maximum packing fraction of the system (area occupied / total area)
 #define BRANCHES 1                // Number of branches per initial neuron
 
 #define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
 #define ONLY_GENERATE_LIST false  // Select false to run the whole program, select true to only generate neurons.
 
-
-// Cambiar lo de los argv y argcos12
 
 // Define a structure to represent a neuron
 typedef struct
