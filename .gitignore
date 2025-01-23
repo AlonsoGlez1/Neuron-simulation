@@ -8,4 +8,5 @@ neurons
 results_dat
 
 #Simulations
-simulations/*
+constantCutoffRadius/
+variableCutoffRadius/
