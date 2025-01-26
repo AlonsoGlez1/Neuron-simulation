@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Fixed arguments
-ARG1=150
+ARG1=100
 ARG2=100000
 ARG3="neurons_dat_5k_lattice"
 BASE_FILENAME_CONNECTIONS="connections_dat"
 BASE_FILENAME_RESULTS="results_dat"
-OUTPUT_DIR1="simulations"
-OUTPUT_DIR2="5k_lattice_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses"
+OUTPUT_DIR1="simulations/constantCutoffRadius"
+OUTPUT_DIR2="5k_lattice_100Lx_0,5rad_0,3927pac_10e5time_1branch_2synapses"
 
 
 # Loop from 1 to 50
