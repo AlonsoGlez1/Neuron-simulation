@@ -14,7 +14,7 @@
 #define BRANCHES 1                // Number of branches per initial neuron
 
 #define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
-#define RUN_WHOLE_SIMULATION false   // Select true to run the whole program, select false to only generate neurons.
+#define RUN_WHOLE_SIMULATION true   // Select true to run the whole program, select false to only generate neurons.
 
 
 // Define a structure to represent a neuron
@@ -34,6 +34,8 @@ int countLinesInFile(FILE *file);
 void readNeuronData(FILE *file, Neuron* neurons, int N_neurons);
 void placeRandom(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
 void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
+void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
+void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons, int initialRandom, float clusterRadius);
 void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, float radius, char mode);
 void writeNeuronData(FILE *file, Neuron *neurons, int N_neurons);
 float Distance(Neuron p1, Neuron p2);
@@ -92,7 +94,7 @@ int main(int argc, char *argv[])
    else
    {
       // Read the number of neurons, the dimensions of the box and neuron radii
-      printf("Random, Lattice or Hexagonal mode (R/L/H): ");     scanf(" %c", &mode);
+      printf("Random, Lattice, Hexagonal or Clustered mode (R/L/H/C): ");     scanf(" %c", &mode);
       // Check the packing fraction to ensure it isn't too dense
       printf("Enter the number of neurons: ");      scanf("%d", &N_neurons);
       printf("Enter the width (L_x) of the box: "); scanf("%f", &L_x);
@@ -540,7 +542,7 @@ void placeRandom(int N_neurons, float L_x, float L_y, float radius, Neuron *neur
 
 
 /**************************************************************************************************************
-* @brief Places neurons inside a box in random positions avoiding overlaping.
+* @brief Places neurons inside a box in a lattice pattern avoiding overlaping.
 *
 * @param N_neurons The total number of neurons.
 * @param L_x       The width of the box.
@@ -583,7 +585,7 @@ void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neu
 
 
 /**************************************************************************************************************
-* @brief Places neurons inside a box in random positions avoiding overlaping.
+* @brief Places neurons inside a box in an hexagonal pattern avoiding overlaping.
 *
 * @param N_neurons The total number of neurons.
 * @param L_x       The width of the box.
@@ -591,50 +593,109 @@ void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neu
 * @param radius    The radius of each neuron.
 * @param neurons   Array of structures of neurons.
 **************************************************************************************************************/
-void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons) {
-    // Calculate the number of rows and columns based on available space
-    int numRows = (int)sqrt((float)(N_neurons * 2.0 / (sqrt(3.0))));
-    int numCols = (N_neurons + numRows) / numRows;  // Ensure enough columns for all neurons
+void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons)
+{
+   // Calculate the number of rows and columns based on available space
+   int numRows = (int)sqrt((float)(N_neurons * 2.0 / (sqrt(3.0))));
+   int numCols = (N_neurons + numRows) / numRows;  // Ensure enough columns for all neurons
 
-    // Adjust spacing to ensure all neurons fit within the box
-    float dx = (L_x - 2 * radius) / (numCols); // Horizontal spacing
-    float dy = (L_y - 2 * radius) / (numRows); // Vertical spacing
+   // Adjust spacing to ensure all neurons fit within the box
+   float dx = (L_x - 2 * radius) / (numCols); // Horizontal spacing
+   float dy = (L_y - 2 * radius) / (numRows); // Vertical spacing
 
     // Ensure minimum spacing for hexagonal structure
-    if (dx < 2 * radius || dy < sqrt(3.0) * radius) {
-        fprintf(stderr, "Error: Neurons cannot fit without overlapping.\n");
-        exit(EXIT_FAILURE);
-    }
+   if(dx < 2 * radius || dy < sqrt(3.0) * radius)
+   {
+      fprintf(stderr, "Error: Neurons cannot fit without overlapping.\n");
+      exit(EXIT_FAILURE);
+   }
 
-    // Place neurons
-    int placedNeurons = 0;
-    for (int i = 0; i < numRows; ++i) {
-        for (int j = 0; j < numCols; ++j) {
-            if (placedNeurons >= N_neurons) break;
+   // Place neurons
+   int placedNeurons = 0;
+   for(int i = 0; i < numRows; ++i)
+   {
+      for(int j = 0; j < numCols; ++j)
+      {
+         if(placedNeurons >= N_neurons) break;
 
-            // Compute x and y positions with row offset for hexagonal structure
-            float x = (i % 2 == 0) ? (j * dx) : (j * dx + dx / 2); // Offset every other row
-            float y = i * dy;
+         // Compute x and y positions with row offset for hexagonal structure
+         float x = (i % 2 == 0) ? (j * dx) : (j * dx + dx / 2); // Offset every other row
+         float y = i * dy;
 
-            // Ensure neurons stay within bounds
-            if (x + radius > L_x || y + radius > L_y) continue;
+         // Ensure neurons stay within bounds
+         if (x + radius > L_x || y + radius > L_y) continue;
 
-            neurons[placedNeurons].x = x + radius;
-            neurons[placedNeurons].y = y + radius;
-            neurons[placedNeurons].radius = radius;
-            neurons[placedNeurons].synapses = 0;
+         neurons[placedNeurons].x = x + radius;
+         neurons[placedNeurons].y = y + radius;
+         neurons[placedNeurons].radius = radius;
+         neurons[placedNeurons].synapses = 0;
+         placedNeurons++;
+      }
+   }
+
+   // Check if all neurons were placed
+   if(placedNeurons < N_neurons)
+   {
+      fprintf(stderr, "Warning: Only %d neurons placed out of %d. Adjust dimensions or radius.\n", placedNeurons, N_neurons);
+   }
+}
+
+
+/**************************************************************************************************************
+* @brief Places neurons inside a box, starting with random positions and forming clusters around them.
+*
+* @param N_neurons      The total number of neurons.
+* @param L_x            The width of the box.
+* @param L_y            The height of the box.
+* @param radius         The radius of each neuron.
+* @param neurons        Array of structures of neurons.
+* @param initialRandom  Number of neurons to place randomly as cluster centers.
+* @param clusterRadius  The maximum distance for clustering around initial neurons.
+**************************************************************************************************************/
+void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons) {
+
+   // Place initial random neurons as 10% of N_neurons, rounding up
+   int initialRandom = (int)ceil(N_neurons * 0.1); 
+   // Place cluster radius as 30% of the effective box size
+   float clusterRadius = (L_x - 2 * radius) * 0.3;
+   int placedNeurons = 0;
+
+    while (placedNeurons < initialRandom) {
+        Neuron newNeuron;
+        newNeuron.x = setInside(L_x, radius);
+        newNeuron.y = setInside(L_y, radius);
+        newNeuron.radius = radius;
+        newNeuron.synapses = 0;
+
+        // Check for overlap with existing neurons
+        if (!isOverlapping(neurons, placedNeurons, newNeuron)) {
+            neurons[placedNeurons] = newNeuron;
             placedNeurons++;
         }
     }
 
-    // Check if all neurons were placed
-    if (placedNeurons < N_neurons) {
-        fprintf(stderr, "Warning: Only %d neurons placed out of %d. Adjust dimensions or radius.\n", placedNeurons, N_neurons);
+    // Step 2: Populate clusters around initial neurons
+    while (placedNeurons < N_neurons) {
+        // Select a random already placed neuron as a cluster center
+        int clusterCenterIdx = rand() % initialRandom;
+        Neuron clusterCenter = neurons[clusterCenterIdx];
+
+        Neuron newNeuron;
+        // Generate a new neuron close to the cluster center
+        newNeuron.x = clusterCenter.x + (float)rand() / RAND_MAX * 2 * clusterRadius - clusterRadius;
+        newNeuron.y = clusterCenter.y + (float)rand() / RAND_MAX * 2 * clusterRadius - clusterRadius;
+        newNeuron.radius = radius;
+        newNeuron.synapses = 0;
+
+        // Ensure the new neuron is within bounds and does not overlap
+        if (newNeuron.x >= 2* radius && newNeuron.x <= L_x - 2 * radius &&
+            newNeuron.y >= 2 * radius && newNeuron.y <= L_y - 2* radius &&
+            !isOverlapping(neurons, placedNeurons, newNeuron)) {
+            neurons[placedNeurons] = newNeuron;
+            placedNeurons++;
+        }
     }
 }
-
-
-
 
 /**************************************************************************************************************
 * @brief Function that prints into a file the positions of generated neurons.
@@ -1191,6 +1252,10 @@ void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, flo
    {
       placeHexagonal(N_neurons, L_x, L_y, radius, neurons);
    }
+   else if(mode == 'C' || mode == 'c')
+   {
+      placeClustered(N_neurons, L_x, L_y, radius, neurons);
+   }
    else
    {
       fprintf(stderr, "Invalid mode\n");
@@ -1298,14 +1363,13 @@ float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, 
 
 
 /**************************************************************************************************************
-* @brief Function that calculates the mean square radius of gyration and the normalized maximum extension.
+* @brief Function that calculates the mean squared displacement.
 *
 * @param neurons       Array of structures of neurons.
 * @param N_neurons     The total number of neurons.
 * @param neuronsList   A list of ordered neuron connections per branch per time step.
 * @param currentBranch The current branch.
 * @param currentTime   The current time step.
-* @param maxExtension  Maximum extension of the branch, from the center of mass. Passed by reference.
 **************************************************************************************************************/
 float meanSquaredDisplacement(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime)
 {
