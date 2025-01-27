@@ -7,14 +7,14 @@
 
 
 #define PI 3.141592654            // Constant for the value of pi
-#define DECAY_FACTOR 80.0         // Factor for the distance decay in connection probability
-#define INT_DIST_FACTOR 8.0       // Factor for the interdistance decay in connection probability
+#define DECAY_FACTOR 10.0         // Factor for the distance decay in connection probability
+#define INT_DIST_FACTOR 5.0       // Factor for the interdistance decay in connection probability
 #define SCALE_FACTOR 9.0          // Global factor to scale the probability distribution
 #define PACKING_FRACTION 0.55     // Maximum packing fraction of the system (area occupied / total area)
 #define BRANCHES 1                // Number of branches per initial neuron
 
 #define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
-#define ONLY_GENERATE_LIST false  // Select false to run the whole program, select true to only generate neurons.
+#define RUN_WHOLE_SIMULATION false   // Select true to run the whole program, select false to only generate neurons.
 
 
 // Define a structure to represent a neuron
@@ -54,6 +54,7 @@ float*** initializeInterdistanceCache(int N_neurons, int *nearbyCounts);
 void freeInterdistanceCache(float ***array, int N_neurons, int *nearbyCounts);
 float** initializeDistanceMatrix(Neuron* neurons, int N_neurons);
 float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime, float *maxExtension);
+float meanSquaredDisplacement(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime);
 
 
 int main(int argc, char *argv[])
@@ -91,7 +92,7 @@ int main(int argc, char *argv[])
    else
    {
       // Read the number of neurons, the dimensions of the box and neuron radii
-      printf("Random or Lattice mode (R/L): ");     scanf(" %c", &mode);
+      printf("Random, Lattice or Hexagonal mode (R/L/H): ");     scanf(" %c", &mode);
       // Check the packing fraction to ensure it isn't too dense
       printf("Enter the number of neurons: ");      scanf("%d", &N_neurons);
       printf("Enter the width (L_x) of the box: "); scanf("%f", &L_x);
@@ -115,7 +116,7 @@ int main(int argc, char *argv[])
       writeNeuronData(neuronFilePtr, neurons, N_neurons);
       fclose(neuronFilePtr);
 
-      if(ONLY_GENERATE_LIST)
+      if(!RUN_WHOLE_SIMULATION)
       {
          printf("Neuron data saved to neurons_dat\n");
          return EXIT_SUCCESS;
@@ -144,10 +145,10 @@ int main(int argc, char *argv[])
    // Save intedistance calculations for every neuron to avoid redundant calculations
    float ***interDistanceCache = initializeInterdistanceCache(N_neurons, nearbyCounts);
 
-   /* Create and allocate memory for a 3D array to store data for each branch
-      Data: 0: N_Connections. 1: Total Distance. 2: Connected Fraction. 4: End-To-EndDistance. 5: Gyration Radius. 6: Maximum Extension.
+   /* Create and allocate memory for a 3D array to store data for each branch // TEMPORAL
+      Data: 0: N_Connections. 1: Total Distance. 2: Connected Fraction. 4: End-To-EndDistance. 5: Gyration Radius. 6: Maximum Extension. 7: Mean Squared Displacement
       Array gets stored as systemData[Data][TimeSteps][Branch] */
-   float ***eachBranchData = allocate3DArray(6, timeSteps, BRANCHES);
+   float ***eachBranchData = allocate3DArray(7, timeSteps, BRANCHES);
    int **neuronsList = allocate2DIntArray(BRANCHES, timeSteps + 1);
 
    // Allocate arrays to keep track of each branch's progress
@@ -263,15 +264,17 @@ int main(int argc, char *argv[])
             neuronsList[branch][time + 1] = currentNeuron;
             fprintf(stderr, "No valid connection found from neuron %d\n", currentNeuron);
          }
-            // Store data in multiple branches on each time step
-            eachBranchData[0][time][branch] = N_connections[branch];
-            eachBranchData[1][time][branch] = totalDistances[branch];
-            eachBranchData[2][time][branch] = connectedFractions[branch];
-            eachBranchData[3][time][branch] = distanceMatrix[initialNeuron][currentNeurons[branch]];
+         
+         // Store data in multiple branches on each time step
+         eachBranchData[0][time][branch] = N_connections[branch];
+         eachBranchData[1][time][branch] = totalDistances[branch];
+         eachBranchData[2][time][branch] = connectedFractions[branch];
+         eachBranchData[3][time][branch] = distanceMatrix[initialNeuron][currentNeurons[branch]];
 
-            float maximumExtension = 0;
-            eachBranchData[4][time][branch] = radiusOfGyration(neurons, N_connections, neuronsList, branch, time + 1, &maximumExtension);
-            eachBranchData[5][time][branch] = 2.0 * maximumExtension / (sqrt(2.0) * maxDistance);
+         float maximumExtension = 0;
+         eachBranchData[4][time][branch] = radiusOfGyration(neurons, N_connections, neuronsList, branch, time + 1, &maximumExtension);
+         eachBranchData[5][time][branch] = 2.0 * maximumExtension / (sqrt(2.0) * maxDistance);
+         eachBranchData[6][time][branch] = meanSquaredDisplacement(neurons, N_connections, neuronsList, branch, time + 1);
       }
    }
 
@@ -286,7 +289,7 @@ int main(int argc, char *argv[])
       // Free allocated memory
       free(neurons);
       freeNearbyNeurons(nearbyNeurons, N_neurons);
-      free3DArray(eachBranchData, 6, timeSteps);
+      free3DArray(eachBranchData, 7, timeSteps);
       freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
       free2DIntArray(neuronsList, BRANCHES);
       free2DArray(distanceMatrix, N_neurons);
@@ -300,10 +303,10 @@ int main(int argc, char *argv[])
    }
 
    // Connection format string for file output
-   const char *formatConnections = "%8.4f %8.4f %6.2f %10.4f %10.0f %15.4f %15.4f %15.4f %15.4f %12d\n";
+   const char *formatConnections = "%8.4f %8.4f %6.2f %10.4f %10.0f %15.4f %15.4f %15.4f %15.4f %15.4f %12d\n";
    for(int branch = 0; branch < BRANCHES; branch++)
    {
-      fprintf(connectionFilePtr, "Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   GyrationRadius   NormalizedMaxExt   TimeStep\n");
+      fprintf(connectionFilePtr, "Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   GyrationRadius   NormalMaxExt   MSDisp   TimeStep\n");
       fprintf(connectionFilePtr, formatConnections,
               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius,
               0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0);
@@ -314,7 +317,8 @@ int main(int argc, char *argv[])
          fprintf(connectionFilePtr, formatConnections,
                  neurons[neuronsList[branch][time + 1]].x, neurons[neuronsList[branch][time + 1]].y, neurons[neuronsList[branch][time + 1]].radius,
                  eachBranchData[3][time][branch], eachBranchData[0][time][branch], eachBranchData[1][time][branch],
-                 eachBranchData[2][time][branch], eachBranchData[4][time][branch], eachBranchData[5][time][branch],  time + 1);
+                 eachBranchData[2][time][branch], eachBranchData[4][time][branch], eachBranchData[5][time][branch],  
+                 eachBranchData[6][time][branch], time + 1);
       }
       //Line break to separate data
       fprintf(connectionFilePtr, "\n\n\n");
@@ -334,7 +338,7 @@ int main(int argc, char *argv[])
       // Free allocated memory
       free(neurons);
       freeNearbyNeurons(nearbyNeurons, N_neurons);
-      free3DArray(eachBranchData, 6, timeSteps);
+      free3DArray(eachBranchData, 7, timeSteps);
       freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
       free2DArray(distanceMatrix, N_neurons);
       free2DIntArray(neuronsList, BRANCHES);
@@ -377,7 +381,7 @@ int main(int argc, char *argv[])
    free(neurons);
    freeNearbyNeurons(nearbyNeurons, N_neurons);
    freeInterdistanceCache(interDistanceCache, N_neurons, nearbyCounts);
-   free3DArray(eachBranchData, 6, timeSteps);
+   free3DArray(eachBranchData, 7, timeSteps);
    free2DArray(mergedBranchesData, 3);
    free2DArray(distanceMatrix, N_neurons);
    free2DIntArray(neuronsList, BRANCHES);
@@ -551,10 +555,12 @@ void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neu
 
    float dx = (L_x - 2 * radius) / (numCols - 1);    // Spacing in the x direction
    float dy = (L_y - 2 * radius) / (numRows - 1);    // Spacing in the y direction
-   float distance = sqrt(dx * dx + dy* dy);          // Handles overlapping
+
+   // Handles overlapping
+   float distance = sqrt(dx * dx + dy* dy);
    if(distance < 2 * radius)
    {
-      fprintf(stderr, "Error: unavoidable overlapping");
+      fprintf(stderr, "Error: Not enough space to place %d neurons in the given area (L_x = %.2f, L_y = %.2f).\n", N_neurons, L_x, L_y);
       exit(EXIT_FAILURE);
    }
 
@@ -574,6 +580,60 @@ void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neu
        }
    }
 }
+
+
+/**************************************************************************************************************
+* @brief Places neurons inside a box in random positions avoiding overlaping.
+*
+* @param N_neurons The total number of neurons.
+* @param L_x       The width of the box.
+* @param L_y       The height of the box.
+* @param radius    The radius of each neuron.
+* @param neurons   Array of structures of neurons.
+**************************************************************************************************************/
+void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons) {
+    // Calculate the number of rows and columns based on available space
+    int numRows = (int)sqrt((float)(N_neurons * 2.0 / (sqrt(3.0))));
+    int numCols = (N_neurons + numRows) / numRows;  // Ensure enough columns for all neurons
+
+    // Adjust spacing to ensure all neurons fit within the box
+    float dx = (L_x - 2 * radius) / (numCols); // Horizontal spacing
+    float dy = (L_y - 2 * radius) / (numRows); // Vertical spacing
+
+    // Ensure minimum spacing for hexagonal structure
+    if (dx < 2 * radius || dy < sqrt(3.0) * radius) {
+        fprintf(stderr, "Error: Neurons cannot fit without overlapping.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Place neurons
+    int placedNeurons = 0;
+    for (int i = 0; i < numRows; ++i) {
+        for (int j = 0; j < numCols; ++j) {
+            if (placedNeurons >= N_neurons) break;
+
+            // Compute x and y positions with row offset for hexagonal structure
+            float x = (i % 2 == 0) ? (j * dx) : (j * dx + dx / 2); // Offset every other row
+            float y = i * dy;
+
+            // Ensure neurons stay within bounds
+            if (x + radius > L_x || y + radius > L_y) continue;
+
+            neurons[placedNeurons].x = x + radius;
+            neurons[placedNeurons].y = y + radius;
+            neurons[placedNeurons].radius = radius;
+            neurons[placedNeurons].synapses = 0;
+            placedNeurons++;
+        }
+    }
+
+    // Check if all neurons were placed
+    if (placedNeurons < N_neurons) {
+        fprintf(stderr, "Warning: Only %d neurons placed out of %d. Adjust dimensions or radius.\n", placedNeurons, N_neurons);
+    }
+}
+
+
 
 
 /**************************************************************************************************************
@@ -1115,7 +1175,7 @@ void freeInterdistanceCache(float ***interdistanceCache, int N_neurons, int *nea
 * @param L_x       Width of the box.
 * @param L_y       Height of the box.
 * @param radius    Radius of the neurons.
-* @param mode      Random (R/r) or Lattice (L/l).
+* @param mode      Random (R/r), Lattice (L/l) or Hexagonal (H/h).
 **************************************************************************************************************/
 void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, float radius, char mode) 
 {
@@ -1123,9 +1183,13 @@ void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, flo
    {
       placeRandom(N_neurons, L_x, L_y, radius, neurons);
    }
-   else if (mode == 'L' || mode == 'l')
+   else if(mode == 'L' || mode == 'l')
    {
       placeLattice(N_neurons, L_x, L_y, radius, neurons);
+   }
+   else if (mode == 'H' || mode == 'h')
+   {
+      placeHexagonal(N_neurons, L_x, L_y, radius, neurons);
    }
    else
    {
@@ -1230,4 +1294,46 @@ float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, 
 
     // Mean square radius of gyration
     return sqrt(sumSquareDistances / N);
+}
+
+
+/**************************************************************************************************************
+* @brief Function that calculates the mean square radius of gyration and the normalized maximum extension.
+*
+* @param neurons       Array of structures of neurons.
+* @param N_neurons     The total number of neurons.
+* @param neuronsList   A list of ordered neuron connections per branch per time step.
+* @param currentBranch The current branch.
+* @param currentTime   The current time step.
+* @param maxExtension  Maximum extension of the branch, from the center of mass. Passed by reference.
+**************************************************************************************************************/
+float meanSquaredDisplacement(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime)
+{
+   // It needs at least 1 time step or 1 connections to connect 2 neurons
+   if(currentTime < 1 || N_connections[currentBranch] < 1)
+   {
+      return 0.0;
+   }
+
+   // For n connections, there's n + 1 neurons 
+   int N = N_connections[currentBranch] + 1;
+
+   // Calculates square distances
+   float sumSquareDistances = 0.0;
+   for(int time = 0; time <= currentTime; time++)
+   {
+      if(time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
+      {
+         continue; // If the current neuron is the same, skip the calculations.
+      }
+
+      float dx = neurons[neuronsList[currentBranch][time]].x - neurons[neuronsList[currentBranch][0]].x;
+      float dy = neurons[neuronsList[currentBranch][time]].y - neurons[neuronsList[currentBranch][0]].y;
+
+      sumSquareDistances += dx * dx + dy * dy;
+   }
+
+    // Mean squared displacement
+    //return sumSquareDistances / N;
+    return sumSquareDistances;
 }
