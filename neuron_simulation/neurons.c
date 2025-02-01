@@ -5,6 +5,8 @@
 #include <math.h>
 #include <stdbool.h>
 
+#define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
+#define RUN_WHOLE_SIMULATION true   // Select true to run the whole program, select false to only generate neurons.
 
 #define PI 3.141592654            // Constant for the value of pi
 #define DECAY_FACTOR 10.0         // Factor for the distance decay in connection probability
@@ -12,10 +14,6 @@
 #define SCALE_FACTOR 9.0          // Global factor to scale the probability distribution
 #define PACKING_FRACTION 0.55     // Maximum packing fraction of the system (area occupied / total area)
 #define BRANCHES 1                // Number of branches per initial neuron
-
-#define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
-#define RUN_WHOLE_SIMULATION true   // Select true to run the whole program, select false to only generate neurons.
-
 
 // Define a structure to represent a neuron
 typedef struct
@@ -74,7 +72,7 @@ int main(int argc, char *argv[])
 ||                                     INITIALIZE NEURON POSITIONS                                       ||
 +=========================================================================================================+
 */
-   if(IMPORT_NEURONS_LIST) 
+   if (IMPORT_NEURONS_LIST) 
    {
       char *neuronsFile = argv[3];
       importNeurons(neuronsFile, &neurons, &N_neurons);
@@ -104,7 +102,7 @@ int main(int argc, char *argv[])
 
       // Allocate memory for the neurons
       neurons = (Neuron *)calloc(N_neurons, sizeof(Neuron));
-      if(!neurons)
+      if (!neurons)
       {
          fprintf(stderr, "Memory allocation failed\n");
          return EXIT_FAILURE;
@@ -118,7 +116,7 @@ int main(int argc, char *argv[])
       writeNeuronData(neuronFilePtr, neurons, N_neurons);
       fclose(neuronFilePtr);
 
-      if(!RUN_WHOLE_SIMULATION)
+      if (!RUN_WHOLE_SIMULATION)
       {
          printf("Neuron data saved to neurons_dat\n");
          return EXIT_SUCCESS;
@@ -160,7 +158,7 @@ int main(int argc, char *argv[])
    float *endToEndDistances = (float *)calloc(BRANCHES, sizeof(float));
    float *connectedFractions = (float *)calloc(BRANCHES, sizeof(float));
 
-   if(!currentNeurons || !N_connections || !totalDistances || !endToEndDistances || !connectedFractions)
+   if (!currentNeurons || !N_connections || !totalDistances || !endToEndDistances || !connectedFractions)
    {
       fprintf(stderr, "Memory allocation failed for branch data\n");
       free(neurons);
@@ -171,7 +169,7 @@ int main(int argc, char *argv[])
 
    // Initialize all branches with the same starting random neuron
    int initialNeuron = rand() % (N_neurons + 1);
-   for(int branch = 0; branch < BRANCHES; ++branch)
+   for (int branch = 0; branch < BRANCHES; ++branch)
    {
       currentNeurons[branch] = initialNeuron;
       neuronsList[branch][0] = initialNeuron;
@@ -179,15 +177,15 @@ int main(int argc, char *argv[])
    neurons[initialNeuron].synapses = N_synapses - BRANCHES;
 
    // Start looking for candidates. Every branch in the same time step.
-   for(int time = 0; time < timeSteps; ++time)
+   for (int time = 0; time < timeSteps; ++time)
    {
-      for(int branch = 0; branch < BRANCHES; branch++)
+      for (int branch = 0; branch < BRANCHES; branch++)
       {
          int currentNeuron = currentNeurons[branch];
          int nextNeuron = -1;
 
          // Attempt to find the next valid neuron from nearby neurons list
-         for(int attempt = 0; attempt < nearbyCounts[currentNeuron]; ++attempt)
+         for (int attempt = 0; attempt < nearbyCounts[currentNeuron]; ++attempt)
          {  
             // Select a candidate with its local index in the nearbyNeurons list
             int candidateNeuronNearbyIndex = rand() % (nearbyCounts[currentNeuron] + 1);
@@ -195,34 +193,34 @@ int main(int argc, char *argv[])
             int candidateNeuron = nearbyNeurons[currentNeuron][candidateNeuronNearbyIndex];
 
             // Ensure the candidate is valid for connection
-            if(candidateNeuron != initialNeuron
-               && neurons[candidateNeuron].synapses < N_synapses - 1
-               && neurons[currentNeuron].synapses < N_synapses)
+            if (candidateNeuron != initialNeuron && 
+               neurons[candidateNeuron].synapses < N_synapses - 1 &&
+               neurons[currentNeuron].synapses < N_synapses)
             {
                float intDistFactor = 1.0; // Reduction factor by intermediate neurons
 
                // Loop through nearby neurons for interdistance calculation
-               for(int j = 0; j < nearbyCounts[currentNeuron]; j++)
+               for (int j = 0; j < nearbyCounts[currentNeuron]; j++)
                {
                   // Select a possible interNeuron with its local index in the nearbyNeurons list
                   int interNeuronNearbyIndex = j;
                   // Select a possible interNeuron with its global index in the neurons list of structures
                   int interNeuron = nearbyNeurons[currentNeuron][j];
-                  if(interNeuron == initialNeuron)
+                  if (interNeuron == initialNeuron)
                   {
                      continue; // Skip current loop
                   }
 
                   // Check if the interNeuron is in the space between the current and the candidate neurons
-                  if(isBetween(&currentNeuron, &interNeuron, &candidateNeuron, distanceMatrix))
+                  if (isBetween(&currentNeuron, &interNeuron, &candidateNeuron, distanceMatrix))
                   {
                      // Calculate the interdistance
                      float interdistance = interDistance(&currentNeuron, &candidateNeuron, &candidateNeuronNearbyIndex, &interNeuron, &interNeuronNearbyIndex, distanceMatrix, interDistanceCache);
 
                      // Adjust the connection probability based on intermediate neurons
-                     if(interdistance < radius)
+                     if (interdistance < radius)
                      {
-                        if(interdistance <= (0.5 * radius) && neurons[interNeuron].synapses < N_synapses - 1)
+                        if (interdistance <= (0.5 * radius) && neurons[interNeuron].synapses < N_synapses - 1)
                         {
                            // The intermediate neuron becomes the new candidate
                            candidateNeuron = interNeuron;
@@ -239,7 +237,7 @@ int main(int argc, char *argv[])
 
                // Probability check for connection based on distance
                float dist = distanceMatrix[currentNeuron][candidateNeuron];
-               if(connectionProbability(&dist, &intDistFactor, &maxDistance) > (float)rand() / RAND_MAX)
+               if (connectionProbability(&dist, &intDistFactor, &maxDistance) > (float)rand() / RAND_MAX)
                {
                   nextNeuron = candidateNeuron;
                   break;
@@ -248,7 +246,7 @@ int main(int argc, char *argv[])
          }
 
          // If a connection was made, update the branch data
-         if(nextNeuron != -1)
+         if (nextNeuron != -1)
          {
             N_connections[branch]++;
             totalDistances[branch] += distanceMatrix[currentNeuron][nextNeuron];
@@ -306,14 +304,14 @@ int main(int argc, char *argv[])
 
    // Connection format string for file output
    const char *formatConnections = "%8.4f %8.4f %6.2f %10.4f %10.0f %15.4f %15.4f %15.4f %15.4f %15.4f %12d\n";
-   for(int branch = 0; branch < BRANCHES; branch++)
+   for (int branch = 0; branch < BRANCHES; branch++)
    {
       fprintf(connectionFilePtr, "Xlabel   Ylabel   Radius   EndToEnd   N_connections   TotalDist   ConnectedFraction   GyrationRadius   NormalMaxExt   MSDisp   TimeStep\n");
       fprintf(connectionFilePtr, formatConnections,
               neurons[initialNeuron].x, neurons[initialNeuron].y, neurons[initialNeuron].radius,
               0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0);
 
-      for(int time = 0; time < timeSteps; time++)
+      for (int time = 0; time < timeSteps; time++)
       {
          // Write connected neuron to the file
          fprintf(connectionFilePtr, formatConnections,
@@ -333,7 +331,7 @@ int main(int argc, char *argv[])
    // char *resultsFile = argv[5];
    // FILE *resultsFilePtr = fopen(resultsFile, "w");
    FILE *resultsFilePtr = fopen("results_dat", "w");
-   if(!resultsFilePtr)
+   if (!resultsFilePtr)
    {
       fprintf(stderr, "\nFailed to open results data file for writing\n");
 
@@ -361,9 +359,9 @@ int main(int argc, char *argv[])
    float** mergedBranchesData = allocate2DArray(3, timeSteps);
 
    // Merge the data of the 3D array into the same time step
-   for(int time = 0; time < timeSteps; time++)
+   for (int time = 0; time < timeSteps; time++)
    {
-      for(int branch = 0; branch < BRANCHES; branch++)
+      for (int branch = 0; branch < BRANCHES; branch++)
       {
          mergedBranchesData[0][time] += eachBranchData[0][time][branch];
          mergedBranchesData[1][time] += eachBranchData[1][time][branch];
@@ -372,7 +370,7 @@ int main(int argc, char *argv[])
    }
 
    // Print data per time step
-   for(int time = 0; time < timeSteps; time++)
+   for (int time = 0; time < timeSteps; time++)
    {
       fprintf(resultsFilePtr, formatResults, mergedBranchesData[0][time], mergedBranchesData[1][time], mergedBranchesData[2][time], time + 1);
    }
@@ -419,7 +417,7 @@ void packingFraction(int N_neurons, float L_x, float L_y, float radius)
    float packingfraction = (N_neurons * PI * pow(radius, 2)) / (L_x * L_y);
 
    // Check if the packing fraction exceeds the predefined limit
-   if(packingfraction >= PACKING_FRACTION)
+   if (packingfraction >= PACKING_FRACTION)
    {
       fprintf(stderr, "Packing fraction: %.5f is too dense.\n", packingfraction);
       exit(EXIT_FAILURE);
@@ -438,14 +436,14 @@ void packingFraction(int N_neurons, float L_x, float L_y, float radius)
 void importNeurons(char* filename, Neuron** neurons, int* N_neurons)
 {
    FILE *file = fopen(filename, "r");
-   if(!file)
+   if (!file)
    {
       perror("Error opening file for reading.\n");
       exit(EXIT_FAILURE);
    }
 
    char header[100];
-   if(!fgets(header, sizeof(header), file))
+   if (!fgets(header, sizeof(header), file))
    {
       perror("Error reading header");
       fclose(file);
@@ -454,7 +452,7 @@ void importNeurons(char* filename, Neuron** neurons, int* N_neurons)
 
    *N_neurons = countLinesInFile(file);
    *neurons = (Neuron *)calloc(*N_neurons, sizeof(Neuron));
-   if(!*neurons)
+   if (!*neurons)
    {
       fprintf(stderr, "Memory allocation failed\n");
       exit(EXIT_FAILURE);   
@@ -499,7 +497,7 @@ void readNeuronData(FILE *file, Neuron* neurons, int N_neurons)
    fgets(header, sizeof(header), file); // Skip header
    for (int i = 0; i < N_neurons; i++)
    {
-     if(fscanf(file, "%f %f %f", &neurons[i].x, &neurons[i].y, &neurons[i].radius) != 3)
+     if (fscanf(file, "%f %f %f", &neurons[i].x, &neurons[i].y, &neurons[i].radius) != 3)
       {
          fprintf(stderr, "Error reading line %d\n", i + 1);
          free(neurons);
@@ -523,7 +521,7 @@ void readNeuronData(FILE *file, Neuron* neurons, int N_neurons)
 void placeRandom(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons)
 {
    int placedNeurons = 0;
-      while(placedNeurons < N_neurons)
+      while (placedNeurons < N_neurons)
       {
          Neuron newNeuron;
          newNeuron.x = setInside(L_x,radius);
@@ -532,7 +530,7 @@ void placeRandom(int N_neurons, float L_x, float L_y, float radius, Neuron *neur
          newNeuron.synapses = 0;
 
          //Check for overlap with existing neurons
-         if(!isOverlapping(neurons, placedNeurons, newNeuron))
+         if (!isOverlapping(neurons, placedNeurons, newNeuron))
          {
             neurons[placedNeurons] = newNeuron;
             placedNeurons++;
@@ -560,18 +558,18 @@ void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neu
 
    // Handles overlapping
    float distance = sqrt(dx * dx + dy* dy);
-   if(distance < 2 * radius)
+   if (distance < 2 * radius)
    {
       fprintf(stderr, "Error: Not enough space to place %d neurons in the given area (L_x = %.2f, L_y = %.2f).\n", N_neurons, L_x, L_y);
       exit(EXIT_FAILURE);
    }
 
    int placedNeurons = 0;
-   for(int i = 0; i < numRows; ++i)
+   for (int i = 0; i < numRows; ++i)
    {
-       for(int j = 0; j < numCols; ++j)
+       for (int j = 0; j < numCols; ++j)
        {
-         if(placedNeurons < N_neurons)
+         if (placedNeurons < N_neurons)
          {
             neurons[placedNeurons].x = radius + j * dx;
             neurons[placedNeurons].y = radius + i * dy;
@@ -604,7 +602,7 @@ void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *n
    float dy = (L_y - 2 * radius) / (numRows); // Vertical spacing
 
     // Ensure minimum spacing for hexagonal structure
-   if(dx < 2 * radius || dy < sqrt(3.0) * radius)
+   if (dx < 2 * radius || dy < sqrt(3.0) * radius)
    {
       fprintf(stderr, "Error: Neurons cannot fit without overlapping.\n");
       exit(EXIT_FAILURE);
@@ -612,11 +610,11 @@ void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *n
 
    // Place neurons
    int placedNeurons = 0;
-   for(int i = 0; i < numRows; ++i)
+   for (int i = 0; i < numRows; ++i)
    {
-      for(int j = 0; j < numCols; ++j)
+      for (int j = 0; j < numCols; ++j)
       {
-         if(placedNeurons >= N_neurons) break;
+         if (placedNeurons >= N_neurons) break;
 
          // Compute x and y positions with row offset for hexagonal structure
          float x = (i % 2 == 0) ? (j * dx) : (j * dx + dx / 2); // Offset every other row
@@ -634,7 +632,7 @@ void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *n
    }
 
    // Check if all neurons were placed
-   if(placedNeurons < N_neurons)
+   if (placedNeurons < N_neurons)
    {
       fprintf(stderr, "Warning: Only %d neurons placed out of %d. Adjust dimensions or radius.\n", placedNeurons, N_neurons);
    }
@@ -649,52 +647,54 @@ void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *n
 * @param L_y            The height of the box.
 * @param radius         The radius of each neuron.
 * @param neurons        Array of structures of neurons.
-* @param initialRandom  Number of neurons to place randomly as cluster centers.
-* @param clusterRadius  The maximum distance for clustering around initial neurons.
 **************************************************************************************************************/
-void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons) {
-
+void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons)
+{
    // Place initial random neurons as 10% of N_neurons, rounding up
    int initialRandom = (int)ceil(N_neurons * 0.1); 
    // Place cluster radius as 30% of the effective box size
    float clusterRadius = (L_x - 2 * radius) * 0.3;
+
    int placedNeurons = 0;
+   while (placedNeurons < initialRandom)
+   {
+      Neuron newNeuron;
+      newNeuron.x = setInside(L_x, radius);
+      newNeuron.y = setInside(L_y, radius);
+      newNeuron.radius = radius;
+      newNeuron.synapses = 0;
 
-    while (placedNeurons < initialRandom) {
-        Neuron newNeuron;
-        newNeuron.x = setInside(L_x, radius);
-        newNeuron.y = setInside(L_y, radius);
-        newNeuron.radius = radius;
-        newNeuron.synapses = 0;
+      // Check for overlap with existing neurons
+      if (!isOverlapping(neurons, placedNeurons, newNeuron))
+      {
+         neurons[placedNeurons] = newNeuron;
+         placedNeurons++;
+      }
+   }
 
-        // Check for overlap with existing neurons
-        if (!isOverlapping(neurons, placedNeurons, newNeuron)) {
-            neurons[placedNeurons] = newNeuron;
-            placedNeurons++;
-        }
-    }
+    // Populate clusters around initial neurons
+   while (placedNeurons < N_neurons)
+   {
+      // Select a random already placed neuron as a cluster center
+      int clusterCenterIdx = rand() % initialRandom;
+      Neuron clusterCenter = neurons[clusterCenterIdx];
 
-    // Step 2: Populate clusters around initial neurons
-    while (placedNeurons < N_neurons) {
-        // Select a random already placed neuron as a cluster center
-        int clusterCenterIdx = rand() % initialRandom;
-        Neuron clusterCenter = neurons[clusterCenterIdx];
+      Neuron newNeuron;
+      // Generate a new neuron close to the cluster center
+      newNeuron.x = clusterCenter.x + (float)rand() / RAND_MAX * 2 * clusterRadius - clusterRadius;
+      newNeuron.y = clusterCenter.y + (float)rand() / RAND_MAX * 2 * clusterRadius - clusterRadius;
+      newNeuron.radius = radius;
+      newNeuron.synapses = 0;
 
-        Neuron newNeuron;
-        // Generate a new neuron close to the cluster center
-        newNeuron.x = clusterCenter.x + (float)rand() / RAND_MAX * 2 * clusterRadius - clusterRadius;
-        newNeuron.y = clusterCenter.y + (float)rand() / RAND_MAX * 2 * clusterRadius - clusterRadius;
-        newNeuron.radius = radius;
-        newNeuron.synapses = 0;
-
-        // Ensure the new neuron is within bounds and does not overlap
-        if (newNeuron.x >= 2* radius && newNeuron.x <= L_x - 2 * radius &&
-            newNeuron.y >= 2 * radius && newNeuron.y <= L_y - 2* radius &&
-            !isOverlapping(neurons, placedNeurons, newNeuron)) {
-            neurons[placedNeurons] = newNeuron;
-            placedNeurons++;
-        }
-    }
+      // Ensure the new neuron is within bounds and does not overlap
+      if (newNeuron.x >= 2* radius && newNeuron.x <= L_x - 2 * radius &&
+         newNeuron.y >= 2 * radius && newNeuron.y <= L_y - 2* radius &&
+         !isOverlapping(neurons, placedNeurons, newNeuron))
+      {
+         neurons[placedNeurons] = newNeuron;
+         placedNeurons++;
+      }
+   }
 }
 
 /**************************************************************************************************************
@@ -715,7 +715,7 @@ void writeNeuronData(FILE *file, Neuron *neurons, int N_neurons)
    fprintf(file, "Xlabel   Ylabel   Radius\n");
 
    // Write neuron data
-   for(int i = 0; i < N_neurons; ++i)
+   for (int i = 0; i < N_neurons; ++i)
    {
       fprintf(file, "%8.4lf %8.4lf %6.2lf\n", neurons[i].x, neurons[i].y, neurons[i].radius);
    }
@@ -751,8 +751,8 @@ float Distance(Neuron p1, Neuron p2)
 **************************************************************************************************************/
 bool isBetween(int *currentNeuron, int *interNeuron, int *candidateNeuron, float **distanceMatrix)
 {
-   if(distanceMatrix[*currentNeuron][*candidateNeuron] > distanceMatrix[*currentNeuron][*interNeuron] 
-      && distanceMatrix[*currentNeuron][*candidateNeuron] > distanceMatrix[*interNeuron][*candidateNeuron])
+   if (distanceMatrix[*currentNeuron][*candidateNeuron] > distanceMatrix[*currentNeuron][*interNeuron] &&
+      distanceMatrix[*currentNeuron][*candidateNeuron] > distanceMatrix[*interNeuron][*candidateNeuron])
    {
      return true;
    }
@@ -771,9 +771,9 @@ bool isBetween(int *currentNeuron, int *interNeuron, int *candidateNeuron, float
 **************************************************************************************************************/
 bool isOverlapping(Neuron *neurons, int N_neurons, Neuron newNeuron)
 {
-   for(int i = 0; i < N_neurons; ++i)
+   for (int i = 0; i < N_neurons; ++i)
    {
-      if(Distance(neurons[i], newNeuron) < 2 * newNeuron.radius)
+      if (Distance(neurons[i], newNeuron) < 2 * newNeuron.radius)
       {
          return true;
       }
@@ -828,7 +828,7 @@ float connectionProbability(float *dist, float *intDistFactor, float *maxDistanc
 float interDistance(int *currentNeuron, int *candidateNeuron, int *candidateNeuronIndex, int *interNeuron, int *interNeuronIndex, float **distanceMatrix, float ***interDistanceCache)
 {
    // Check if the interdistance is already calculated
-   if(interDistanceCache[*currentNeuron][*candidateNeuronIndex][*interNeuronIndex] > 0)
+   if (interDistanceCache[*currentNeuron][*candidateNeuronIndex][*interNeuronIndex] > 0)
    {
       return interDistanceCache[*currentNeuron][*candidateNeuronIndex][*interNeuronIndex];
    }
@@ -871,12 +871,12 @@ void findNearbyNeurons(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, 
    }
 
    // First pass: Count the number of nearby neurons for each neuron
-   for(int i = 0; i < N_neurons; ++i)
+   for (int i = 0; i < N_neurons; ++i)
    {
       (*nearbyCounts)[i] = 0;  // Initialize the count for each neuron
-      for(int j = 0; j < N_neurons; ++j)
+      for (int j = 0; j < N_neurons; ++j)
       {
-         if(i != j && distanceMatrix[i][j] <= cutoffRadius)
+         if (i != j && distanceMatrix[i][j] <= cutoffRadius)
          {
             (*nearbyCounts)[i]++;  // Increment the nearby count for neuron i
          }
@@ -884,11 +884,11 @@ void findNearbyNeurons(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, 
    }
 
    // Allocate memory for the actual number of neighbors
-   for(int i = 0; i < N_neurons; ++i)
+   for (int i = 0; i < N_neurons; ++i)
    {
       (*nearbyNeurons)[i] = (int *)calloc((*nearbyCounts)[i] + 1, sizeof(int));  // Allocate exact memory size
 
-      if(!(*nearbyNeurons)[i])
+      if (!(*nearbyNeurons)[i])
       {
          fprintf(stderr, "Failed to allocate memory for nearby neurons list\n");
          exit(EXIT_FAILURE);
@@ -896,12 +896,12 @@ void findNearbyNeurons(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, 
    }
 
    // Second pass: Populate the list of nearby neurons
-   for(int i = 0; i < N_neurons; ++i)
+   for (int i = 0; i < N_neurons; ++i)
    {
       int count = 0;  // Index for storing nearby neurons
-      for(int j = 0; j < N_neurons; ++j)
+      for (int j = 0; j < N_neurons; ++j)
       {
-         if(i != j && distanceMatrix[i][j] <= cutoffRadius)
+         if (i != j && distanceMatrix[i][j] <= cutoffRadius)
          {
             (*nearbyNeurons)[i][count] = j; // Store index of nearby neuron
             count++;
@@ -919,7 +919,7 @@ void findNearbyNeurons(int N_neurons, int ***nearbyNeurons, int **nearbyCounts, 
 **************************************************************************************************************/
 void freeNearbyNeurons(int **nearbyNeurons, int N_neurons)
 {
-   for(int i = 0; i < N_neurons; ++i)
+   for (int i = 0; i < N_neurons; ++i)
    {
       free(nearbyNeurons[i]);
    }
@@ -938,7 +938,7 @@ void freeNearbyNeurons(int **nearbyNeurons, int N_neurons)
 int** allocate2DIntArray(int rows, int cols)
 {
    // Validate parameters
-   if(rows <= 0 || cols <= 0)
+   if (rows <= 0 || cols <= 0)
    {
       fprintf(stderr, "Invalid dimensions: rows and cols must be positive values\n");
       exit(EXIT_FAILURE);
@@ -946,22 +946,22 @@ int** allocate2DIntArray(int rows, int cols)
 
    // Allocate memory for the array of pointers
    int** array = (int **)calloc(rows, sizeof(int*));
-   if(!array)
+   if (!array)
    {
       fprintf(stderr, "Failed to allocate memory for the rows\n");
       exit(EXIT_FAILURE);
    }
 
    // Allocate memory for each row and initialize to 0
-   for(int i = 0; i < rows; i++)
+   for (int i = 0; i < rows; i++)
    {
       array[i] = (int *)calloc(cols, sizeof(int)); // Allocate and initialize to 0
-      if(!array[i])
+      if (!array[i])
       {
          fprintf(stderr, "Failed to allocate memory for row %d\n", i);
 
          // Free previously allocated memory before exiting
-         for(int j = 0; j < i; j++)
+         for (int j = 0; j < i; j++)
          {
             free(array[j]);
          }
@@ -983,12 +983,12 @@ int** allocate2DIntArray(int rows, int cols)
 **************************************************************************************************************/
 void free2DIntArray(int** array, int rows)
 {
-   if(!array)
+   if (!array)
    {
       return; // If the array is NULL, do nothing
    }
 
-   for(int i = 0; i < rows; i++)
+   for (int i = 0; i < rows; i++)
    {
       free(array[i]); // Free each row
    }
@@ -1008,14 +1008,14 @@ float** allocate2DArray(int rows, int cols)
 {
    // Allocate memory for the array of pointers
    float** array = (float **)calloc(rows, sizeof(float*));
-   if(!array)
+   if (!array)
    {
       fprintf(stderr, "Failed to allocate memory for the rows\n");
       exit(EXIT_FAILURE);
    }
 
    // Allocate memory for each row and initialize to 0
-   for(int i = 0; i < rows; i++)
+   for (int i = 0; i < rows; i++)
    {
       array[i] = (float *)calloc(cols, sizeof(float)); // Allocate and initialize to 0
       if (!array[i])
@@ -1023,7 +1023,7 @@ float** allocate2DArray(int rows, int cols)
          fprintf(stderr, "Failed to allocate memory for row %d\n", i);
 
          // Free previously allocated memory before exiting
-         for(int j = 0; j < i; j++)
+         for (int j = 0; j < i; j++)
          {
             free(array[j]);
          }
@@ -1044,12 +1044,12 @@ float** allocate2DArray(int rows, int cols)
 **************************************************************************************************************/
 void free2DArray(float** array, int rows)
 {
-   if(!array)
+   if (!array)
    {
       return; // If the array is NULL, do nothing
    }
 
-   for(int i = 0; i < rows; i++)
+   for (int i = 0; i < rows; i++)
    {
       free(array[i]); // Free each row
    }
@@ -1077,14 +1077,14 @@ float*** allocate3DArray(int x, int y, int z)
    }
 
    // Allocate memory for each 2D array and initialize to 0
-   for(int i = 0; i < x; i++)
+   for (int i = 0; i < x; i++)
    {
       array[i] = calloc(y, sizeof(float *));
-      if(!array[i])
+      if (!array[i])
       {
          fprintf(stderr, "Failed to allocate memory for the second dimension\n");
          // Free the already allocated memory
-         for(int k = 0; k < i; k++)
+         for (int k = 0; k < i; k++)
          {
             free(array[k]);
          }
@@ -1093,16 +1093,16 @@ float*** allocate3DArray(int x, int y, int z)
       }
 
       // Allocate memory for each row of the 2D arrays and initialize to 0
-      for(int j = 0; j < y; j++)
+      for (int j = 0; j < y; j++)
       {
          array[i][j] = calloc(z, sizeof(float));
          if (!array[i][j])
          {
             fprintf(stderr, "Failed to allocate memory for the third dimension\n");
             // Free already allocated memory
-            for(int k = 0; k <= i; k++)
+            for (int k = 0; k <= i; k++)
             {
-                for(int l = 0; l < y; l++)
+                for (int l = 0; l < y; l++)
                 {
                     free(array[k][l]);
                 }
@@ -1127,9 +1127,9 @@ float*** allocate3DArray(int x, int y, int z)
 **************************************************************************************************************/
 void free3DArray(float ***array, int x, int y)
 {
-   for(int i = 0; i < x; i++)
+   for (int i = 0; i < x; i++)
    {
-      for(int j = 0; j < y; j++)
+      for (int j = 0; j < y; j++)
       {
          free(array[i][j]); // Free each row of the 2D arrays
       }
@@ -1151,7 +1151,7 @@ float ***initializeInterdistanceCache(int N_neurons, int *nearbyCounts)
 {
    // Allocate a 3D array to store interdistances
    float ***interdistanceCache = (float ***)calloc(N_neurons, sizeof(float **));
-   if(!interdistanceCache)
+   if (!interdistanceCache)
    {
       fprintf(stderr, "Memory allocation failed for interdistance cache.\n");
       exit(EXIT_FAILURE);
@@ -1160,33 +1160,33 @@ float ***initializeInterdistanceCache(int N_neurons, int *nearbyCounts)
    for (int i = 0; i < N_neurons; i++)
    {
       interdistanceCache[i] = (float **)calloc(nearbyCounts[i] + 1, sizeof(float *));
-      if(!interdistanceCache[i])
+      if (!interdistanceCache[i])
       {
          fprintf(stderr, "Memory allocation failed for interdistance cache row %d.\n", i);
          // Free previously allocated memory
-         for(int k = 0; k < i; k++)
+         for (int k = 0; k < i; k++)
          {
             free(interdistanceCache[k]);
          }
          free(interdistanceCache);
          exit(EXIT_FAILURE);
       }
-      for(int j = 0; j < nearbyCounts[i] + 1; j++)
+      for (int j = 0; j < nearbyCounts[i] + 1; j++)
       {
          interdistanceCache[i][j] = (float *)calloc(nearbyCounts[i] + 1, sizeof(float));
-         if(!interdistanceCache[i][j])
+         if (!interdistanceCache[i][j])
          {
             fprintf(stderr, "Memory allocation failed for interdistance cache column.\n");
             // Free previously allocated memory in this row
-            for(int k = 0; k < j; k++)
+            for (int k = 0; k < j; k++)
             {
                free(interdistanceCache[i][k]);
             }
             free(interdistanceCache[i]);
             // Free all previously allocated rows
-            for(int k = 0; k < i; k++)
+            for (int k = 0; k < i; k++)
             {
-               for(int l = 0; l < nearbyCounts[i] + 1; l++)
+               for (int l = 0; l < nearbyCounts[i] + 1; l++)
                {
                   free(interdistanceCache[k][l]);
                }
@@ -1212,10 +1212,10 @@ float ***initializeInterdistanceCache(int N_neurons, int *nearbyCounts)
 void freeInterdistanceCache(float ***interdistanceCache, int N_neurons, int *nearbyCounts)
 {
    // Free the 3D array memory
-   for(int i = 0; i < N_neurons; i++)
+   for (int i = 0; i < N_neurons; i++)
    {
       // Free each pointer in the row
-      for(int j = 0; j < nearbyCounts[i] + 1; j++)
+      for (int j = 0; j < nearbyCounts[i] + 1; j++)
       {
          free(interdistanceCache[i][j]); // Free the double pointer
       }
@@ -1240,11 +1240,11 @@ void freeInterdistanceCache(float ***interdistanceCache, int N_neurons, int *nea
 **************************************************************************************************************/
 void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, float radius, char mode) 
 {
-   if(mode == 'R' || mode == 'r')
+   if (mode == 'R' || mode == 'r')
    {
       placeRandom(N_neurons, L_x, L_y, radius, neurons);
    }
-   else if(mode == 'L' || mode == 'l')
+   else if (mode == 'L' || mode == 'l')
    {
       placeLattice(N_neurons, L_x, L_y, radius, neurons);
    }
@@ -1252,7 +1252,7 @@ void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, flo
    {
       placeHexagonal(N_neurons, L_x, L_y, radius, neurons);
    }
-   else if(mode == 'C' || mode == 'c')
+   else if (mode == 'C' || mode == 'c')
    {
       placeClustered(N_neurons, L_x, L_y, radius, neurons);
    }
@@ -1279,7 +1279,7 @@ float** initializeDistanceMatrix(Neuron* neurons, int N_neurons)
       for (int j = i + 1; j < N_neurons; j++)
       {
          float distance = Distance(neurons[i], neurons[j]);
-         if(distance < 1e-5)
+         if (distance < 1e-5)
          {
             distance = 0.0;
          }
@@ -1306,7 +1306,7 @@ float** initializeDistanceMatrix(Neuron* neurons, int N_neurons)
 float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime, float *maxExtension)
 {
    // It needs at least 3 time steps or 2 connections to connect 3 neurons
-   if(currentTime < 2 || N_connections[currentBranch] < 2)
+   if (currentTime < 2 || N_connections[currentBranch] < 2)
    {
       return 0.0;
    }
@@ -1318,9 +1318,9 @@ float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, 
 
 
    // Calculates the center of mass of the chain
-   for(int time = 0; time <= currentTime; time++)
+   for (int time = 0; time <= currentTime; time++)
    {
-      if(time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
+      if (time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
       {
          continue; // If the current neuron is the same, skip the calculations.
       }
@@ -1334,9 +1334,9 @@ float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, 
    float sumSquareDistances = 0.0;
    float maxSquareDistance = 0.0; // Track the maximum square distance
 
-   for(int time = 0; time <= currentTime; time++)
+   for (int time = 0; time <= currentTime; time++)
    {
-      if(time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
+      if (time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
       {
          continue; // If the current neuron is the same, skip the calculations.
       }
@@ -1348,7 +1348,7 @@ float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, 
       sumSquareDistances += squareDistance;
 
       // Check for the fartest neuron from the center of mass
-      if(squareDistance > maxSquareDistance)
+      if (squareDistance > maxSquareDistance)
       {
         maxSquareDistance = squareDistance;
       }
@@ -1374,7 +1374,7 @@ float radiusOfGyration(Neuron *neurons, int  *N_connections, int **neuronsList, 
 float meanSquaredDisplacement(Neuron *neurons, int  *N_connections, int **neuronsList, int currentBranch, int currentTime)
 {
    // It needs at least 1 time step or 1 connections to connect 2 neurons
-   if(currentTime < 1 || N_connections[currentBranch] < 1)
+   if (currentTime < 1 || N_connections[currentBranch] < 1)
    {
       return 0.0;
    }
@@ -1384,9 +1384,9 @@ float meanSquaredDisplacement(Neuron *neurons, int  *N_connections, int **neuron
 
    // Calculates square distances
    float sumSquareDistances = 0.0;
-   for(int time = 0; time <= currentTime; time++)
+   for (int time = 0; time <= currentTime; time++)
    {
-      if(time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
+      if (time > 0 && neuronsList[currentBranch][time] == neuronsList[currentBranch][time - 1])
       {
          continue; // If the current neuron is the same, skip the calculations.
       }
