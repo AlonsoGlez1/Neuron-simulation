@@ -5,12 +5,13 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat
-#define RUN_WHOLE_SIMULATION true   // Select true to run the whole program, select false to only generate neurons.
+#define IMPORT_NEURONS_LIST false  // Select false to generate neurons, select true to read data from neurons_dat
+#define RUN_WHOLE_SIMULATION false // Select true to run the whole program, select false to only generate neurons.
+#define USE_ARGV true 	          // Select true to use command line inputs in the bash script
 
 #define PI 3.141592654            // Constant for the value of pi
-#define DECAY_FACTOR 10.0         // Factor for the distance decay in connection probability
-#define INT_DIST_FACTOR 5.0       // Factor for the interdistance decay in connection probability
+#define DECAY_FACTOR 50.0         // Factor for the distance decay in connection probability
+#define INT_DIST_FACTOR 10.0       // Factor for the interdistance decay in connection probability
 #define SCALE_FACTOR 9.0          // Global factor to scale the probability distribution
 #define PACKING_FRACTION 0.55     // Maximum packing fraction of the system (area occupied / total area)
 #define BRANCHES 1                // Number of branches per initial neuron
@@ -33,7 +34,7 @@ void readNeuronData(FILE *file, Neuron* neurons, int N_neurons);
 void placeRandom(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
 void placeLattice(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
 void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
-void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons, int initialRandom, float clusterRadius);
+void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons);
 void initializeNeurons(Neuron *neurons, int N_neurons, float L_x, float L_y, float radius, char mode);
 void writeNeuronData(FILE *file, Neuron *neurons, int N_neurons);
 float Distance(Neuron p1, Neuron p2);
@@ -72,7 +73,7 @@ int main(int argc, char *argv[])
 ||                                     INITIALIZE NEURON POSITIONS                                       ||
 +=========================================================================================================+
 */
-   if (IMPORT_NEURONS_LIST) 
+   if (IMPORT_NEURONS_LIST)
    {
       char *neuronsFile = argv[3];
       importNeurons(neuronsFile, &neurons, &N_neurons);
@@ -107,10 +108,10 @@ int main(int argc, char *argv[])
          fprintf(stderr, "Memory allocation failed\n");
          return EXIT_FAILURE;
       }
-      
+
       //Generate and store the positions list
       initializeNeurons(neurons, N_neurons, L_x, L_y, radius, mode);
-      
+
       // Write the neuron positions and radii to a file
       FILE *neuronFilePtr = fopen("neurons_dat", "w");
       writeNeuronData(neuronFilePtr, neurons, N_neurons);
@@ -124,7 +125,7 @@ int main(int argc, char *argv[])
 
       printf("Enter the time steps: ");                        scanf("%d", &timeSteps);
       printf("Enter the max number of synapses per neuron: "); scanf("%d", &N_synapses);
-   }  
+   }
 
 /*
 +=========================================================================================================+
@@ -186,14 +187,14 @@ int main(int argc, char *argv[])
 
          // Attempt to find the next valid neuron from nearby neurons list
          for (int attempt = 0; attempt < nearbyCounts[currentNeuron]; ++attempt)
-         {  
+         {
             // Select a candidate with its local index in the nearbyNeurons list
             int candidateNeuronNearbyIndex = rand() % (nearbyCounts[currentNeuron] + 1);
             // Select a candidate with its global index in the neurons list of structures
             int candidateNeuron = nearbyNeurons[currentNeuron][candidateNeuronNearbyIndex];
 
             // Ensure the candidate is valid for connection
-            if (candidateNeuron != initialNeuron && 
+            if (candidateNeuron != initialNeuron &&
                neurons[candidateNeuron].synapses < N_synapses - 1 &&
                neurons[currentNeuron].synapses < N_synapses)
             {
@@ -264,7 +265,7 @@ int main(int argc, char *argv[])
             neuronsList[branch][time + 1] = currentNeuron;
             fprintf(stderr, "No valid connection found from neuron %d\n", currentNeuron);
          }
-         
+
          // Store data in multiple branches on each time step
          eachBranchData[0][time][branch] = N_connections[branch];
          eachBranchData[1][time][branch] = totalDistances[branch];
@@ -278,10 +279,19 @@ int main(int argc, char *argv[])
       }
    }
 
-   // char *connectionFile = argv[4];
    // Open the file for writing neuron connections
-   // FILE *connectionFilePtr = fopen(connectionFile, "w");
-   FILE *connectionFilePtr = fopen("connections_dat", "w");
+   FILE *connectionFilePtr;
+
+   if (USE_ARGV)
+   {
+      char *connectionFile = argv[4];
+      connectionFilePtr = fopen(connectionFile, "w");
+   }
+   else
+   {
+      connectionFilePtr = fopen("connections_dat", "w");
+   }
+
    if (!connectionFilePtr)
    {
       fprintf(stderr, "\nFailed to open connection data file for writing\n");
@@ -328,9 +338,17 @@ int main(int argc, char *argv[])
 
 
    // Write in a file the results for multiple branches in a single time step
-   // char *resultsFile = argv[5];
-   // FILE *resultsFilePtr = fopen(resultsFile, "w");
-   FILE *resultsFilePtr = fopen("results_dat", "w");
+   FILE *resultsFilePtr;
+
+   if (USE_ARGV)
+   {
+      char *resultsFile = argv[5];
+      resultsFilePtr = fopen(resultsFile, "w");
+   }
+   else
+   {
+      resultsFilePtr = fopen("results_dat", "w");
+   }
    if (!resultsFilePtr)
    {
       fprintf(stderr, "\nFailed to open results data file for writing\n");
@@ -651,7 +669,7 @@ void placeHexagonal(int N_neurons, float L_x, float L_y, float radius, Neuron *n
 void placeClustered(int N_neurons, float L_x, float L_y, float radius, Neuron *neurons)
 {
    // Place initial random neurons as 10% of N_neurons, rounding up
-   int initialRandom = (int)ceil(N_neurons * 0.1); 
+   int initialRandom = (int)ceil(N_neurons * 0.1);
    // Place cluster radius as 30% of the effective box size
    float clusterRadius = (L_x - 2 * radius) * 0.3;
 
