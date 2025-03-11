@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Fixed arguments
-ARG1=125 #L_x
+ARG1=150 #L_x
 ARG2=100000 #Time steps
-ARG3="neurons_dat_5k_125Lx_random"
+ARG3="neurons_dat_5k_150Lx_random"
 BASE_FILENAME_CONNECTIONS="connections_dat"
 BASE_FILENAME_RESULTS="results_dat"
 OUTPUT_DIR1="simulations"
-OUTPUT_DIR2="5k_random_125Lx_0,5rad_0,25133pac_10e5time_1branch_2synapses"
+OUTPUT_DIR2="5k_random_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses"
 
 
 # Loop from 1 to 50
