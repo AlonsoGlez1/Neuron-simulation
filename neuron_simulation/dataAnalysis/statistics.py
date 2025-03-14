@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 # Path to directory containing the files
-file_directory = os.path.join("..", "simulations", "5k_random_100Lx_0,5rad_0,30270pac_10e5time_1branch_2synapses") # Relative path
+file_directory = os.path.join("..", "simulations", "5k_cluster_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses") # Relative path
 
 # File pattern for all the data files
 file_pattern = os.path.join(file_directory, "connections_dat_*")
@@ -29,7 +29,7 @@ for file in files:
         column_data[col].append(df[col].values)
 
 # Perform statistical analysis and write results for each column
-output_directory = "simulations/random_100_statistics"
+output_directory = os.path.join("..", "simulations", "cluster_150_statistics")
 os.makedirs(output_directory, exist_ok=True)
 
 for col, data in column_data.items():
