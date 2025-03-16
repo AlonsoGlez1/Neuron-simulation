@@ -6,13 +6,13 @@ run_random_simulation() {
     echo "Running Random Simulation..."
 
     # Fixed arguments
-    ARG1=125    # Box Size
+    ARG1=150    # Box Size
     ARG2=100000 # Time steps
-    ARG3="positions/neurons_dat_5k_125Lx_random"              # Positions data 
+    ARG3="positions/neurons_dat_5k_150Lx_random"              # Positions data 
     BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
     BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
     OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_random_125Lx_0,5rad_0,25133pac_10e5time_1branch_2synapses"
+    OUTPUT_DIR2="5k_random_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses"
 
 
     # Loop from 1 to 50
@@ -42,13 +42,13 @@ run_lattice_simulation() {
     echo "Running Lattice Simulation..."
 
     # Fixed arguments
-    ARG1=125    # Box size
+    ARG1=150    # Box size
     ARG2=100000 #Time steps
-    ARG3="positions/neurons_dat_5k_125Lx_lattice"             # Positions data 
+    ARG3="positions/neurons_dat_5k_150Lx_lattice"             # Positions data 
     BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
     BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
     OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_lattice_125Lx_0,5rad_0,38270pac_10e5time_1branch_2synapses"
+    OUTPUT_DIR2="5k_lattice_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses"
 
 
     # Loop from 1 to 50
@@ -78,13 +78,13 @@ run_hexagonal_simulation() {
     echo "Running Hexagonal Simulation..."
 
     # Fixed arguments
-    ARG1=125    # Box Size
+    ARG1=150    # Box Size
     ARG2=100000 # Time Steps
-    ARG3="positions/neurons_dat_5k_125Lx_cluster"   # Positions data 
+    ARG3="positions/neurons_dat_5k_150Lx_hexagonal"   # Positions data 
     BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
     BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
     OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_cluster_125Lx_0,5rad_0,25133pac_10e5time_1branch_2synapses"
+    OUTPUT_DIR2="5k_hexagonal_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses"
 
 
     # Loop from 1 to 50
@@ -115,13 +115,13 @@ run_cluster_simulation() {
     echo "Running Cluster Simulation..."
 
     # Fixed arguments
-    ARG1=125    # Box Size
+    ARG1=150    # Box Size
     ARG2=100000 # Time Steps
-    ARG3="positions/neurons_dat_5k_125Lx_cluster"   # Positions data 
+    ARG3="positions/neurons_dat_5k_150Lx_cluster"   # Positions data 
     BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
     BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
     OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_cluster_125Lx_0,5rad_0,25133pac_10e5time_1branch_2synapses"
+    OUTPUT_DIR2="5k_cluster_150Lx_0,5rad_0,17453pac_10e5time_1branch_2synapses"
 
 
     # Loop from 1 to 50
