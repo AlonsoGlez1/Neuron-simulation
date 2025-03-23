@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Base directory where the statistics folders are stored
-base_dir="../simulations"
+base_dir="../simulations/Tsitsi_0,9_3,0_2,0"
 
 # Define groups to process
 groups=("random" "lattice" "hexagonal" "cluster")
@@ -11,7 +11,7 @@ for group in "${groups[@]}"; do
     echo "Processing group: $group"
 
     # Find all matching directories for the current group (e.g., random_100_statistics, random_125_statistics, ...)
-    directories=($(ls -d "$base_dir/${group}_"*_statistics 2>/dev/null))
+    directories=($(ls -d "$base_dir"/*"${group}_"*_statistics 2>/dev/null))
 
     # Skip if no directories are found
     if [ ${#directories[@]} -eq 0 ]; then
@@ -30,6 +30,9 @@ for group in "${groups[@]}"; do
 
         # Set the output PNG file name
         output_file="${output_dir}/${base_name}_combined_plot.png"
+        
+        # Set the output .gp file name
+        gp_file="${output_dir}/${base_name}_combined_plot.gp"
 
         # Start Gnuplot command
         gnuplot_cmd="
@@ -43,7 +46,7 @@ for group in "${groups[@]}"; do
             set key box;
             set key opaque;
 
-            set format x '10^{%L}';
+            set format x '%.1te%T';
             set style fill transparent solid 0.25;
             set style fill noborder;
         "
@@ -69,9 +72,13 @@ for group in "${groups[@]}"; do
         # Complete the Gnuplot command
         gnuplot_cmd+="plot ${plot_cmd};"
 
+        # Create the .gp file with the Gnuplot commands
+        echo "$gnuplot_cmd" > "$gp_file"
+
         # Run Gnuplot
         gnuplot -e "$gnuplot_cmd"
 
         echo "Combined plot saved as ${output_file}"
+        echo "Gnuplot script saved as ${gp_file}"
     done
 done
