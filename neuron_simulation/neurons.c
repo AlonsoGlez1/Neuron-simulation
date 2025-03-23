@@ -5,14 +5,14 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define IMPORT_NEURONS_LIST false  // Select false to generate neurons, select true to read data from neurons_dat
-#define RUN_WHOLE_SIMULATION false // Select true to run the whole program, select false to only generate neurons.
+#define IMPORT_NEURONS_LIST true  // Select false to generate neurons, select true to read data from neurons_dat
+#define RUN_WHOLE_SIMULATION true // Select true to run the whole program, select false to only generate neurons.
 #define USE_ARGV true 	          // Select true to use command line inputs in the bash script
 
 #define PI 3.141592654            // Constant for the value of pi
-#define DECAY_FACTOR 50.0         // Factor for the distance decay in connection probability
-#define INT_DIST_FACTOR 10.0       // Factor for the interdistance decay in connection probability
-#define SCALE_FACTOR 9.0          // Global factor to scale the probability distribution
+#define DECAY_FACTOR 3.0         // Factor for the distance decay in connection probability
+#define INT_DIST_FACTOR 3.0       // Factor for the interdistance decay in connection probability
+#define SCALE_FACTOR 0.9          // Global factor to scale the probability distribution
 #define PACKING_FRACTION 0.55     // Maximum packing fraction of the system (area occupied / total area)
 #define BRANCHES 1                // Number of branches per initial neuron
 
