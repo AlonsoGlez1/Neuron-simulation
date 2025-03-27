@@ -1,177 +1,51 @@
 #!/bin/bash
 
-# Define a function for each simulation type
+run_simulation() {
+    local sim_type=$1
+    local box_size=$2
+    local pac_value=$3
 
-run_random_simulation() {
-    echo "Running Random Simulation..."
+    local positions_path="positions/neurons_dat_5k_${box_size}Lx_$sim_type"
+    local output_dir="5k_${sim_type}_${box_size}Lx_0,5rad_${pac_value}pac_10e5time_1branch_2synapses"
 
-    # Fixed arguments
-    ARG1=175    # Box Size
-    ARG2=100000 # Time steps
-    ARG3="positions/neurons_dat_5k_175Lx_random"              # Positions data 
-    BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
-    BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
-    OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_random_175Lx_0,5rad_0,12823pac_10e5time_1branch_2synapses"
+    echo "Running ${sim_type^} Simulation (${box_size}Lx)..."
 
+    mkdir -p "simulations/${output_dir}" 2>/dev/null
 
-    # Loop from 1 to 50
     for i in {1..50}; do
-        # Create the full filename with the current value of i
-        FILENAME1="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_CONNECTIONS}_${i}"
-        FILENAME2="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_RESULTS}_${i}"
+        local conn_file="simulations/${output_dir}/connections_dat_${i}"
+        local res_file="simulations/${output_dir}/results_dat_${i}"
 
-
-        # Display the current command
-        echo "Executing: ./runNeurons $ARG1 $ARG2 $ARG3 $FILENAME1 $FILENAME2"
-
-        # Run the program
-        ./runNeurons "$ARG1" "$ARG2" "$ARG3" "$FILENAME1" "$FILENAME2"
-
-        # Check the exit status
-        if [ $? -ne 0 ]; then
-            echo "Error: Program failed on iteration $i with filename $FILENAME1" 
-            exit 1
+        echo "Executing: ./runNeurons $box_size 100000 $positions_path $conn_file $res_file"
+        
+        if ! ./runNeurons "$box_size" 100000 "$positions_path" "$conn_file" "$res_file"; then
+            echo "Error: Program failed on iteration $i with filename $conn_file" 
+            return 1
         fi
     done
 
-    echo "All executions completed successfully!"
+    echo "${sim_type^} simulation (${box_size}Lx) completed successfully!"
+    return 0
 }
 
-run_lattice_simulation() {
-    echo "Running Lattice Simulation..."
+# Parameter pairs: box_size and pac_value
+declare -A params=(
+    [100]="0,39270"
+    [125]="0,25133"
+    [150]="0,17453"
+    [175]="0,12823"
+    [200]="0,09817"
+)
 
-    # Fixed arguments
-    ARG1=175    # Box size
-    ARG2=100000 #Time steps
-    ARG3="positions/neurons_dat_5k_175Lx_lattice"             # Positions data 
-    BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
-    BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
-    OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_lattice_175Lx_0,5rad_0,12823pac_10e5time_1branch_2synapses"
-
-
-    # Loop from 1 to 50
-    for i in {1..50}; do
-        # Create the full filename with the current value of i
-        FILENAME1="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_CONNECTIONS}_${i}"
-        FILENAME2="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_RESULTS}_${i}"
-
-
-        # Display the current command
-        echo "Executing: ./runNeurons $ARG1 $ARG2 $ARG3 $FILENAME1 $FILENAME2"
-
-        # Run the program
-        ./runNeurons "$ARG1" "$ARG2" "$ARG3" "$FILENAME1" "$FILENAME2"
-
-        # Check the exit status
-        if [ $? -ne 0 ]; then
-            echo "Error: Program failed on iteration $i with filename $FILENAME1" 
+# Run all simulations for each parameter pair and each type
+for box_size in "${!params[@]}"; do
+    pac_value="${params[$box_size]}"
+    for sim_type in random lattice hexagonal cluster; do
+        if ! run_simulation "$sim_type" "$box_size" "$pac_value"; then
+            echo "${sim_type^} simulation failed for ${box_size}Lx. Exiting."
             exit 1
         fi
     done
-
-    echo "All executions completed successfully!"
-}
-
-run_hexagonal_simulation() {
-    echo "Running Hexagonal Simulation..."
-
-    # Fixed arguments
-    ARG1=175    # Box Size
-    ARG2=100000 # Time Steps
-    ARG3="positions/neurons_dat_5k_175Lx_hexagonal"   # Positions data 
-    BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
-    BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
-    OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_hexagonal_175Lx_0,5rad_0,12823pac_10e5time_1branch_2synapses"
-
-
-    # Loop from 1 to 50
-    for i in {1..50}; do
-        # Create the full filename with the current value of i
-        FILENAME1="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_CONNECTIONS}_${i}"
-        FILENAME2="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_RESULTS}_${i}"
-
-
-        # Display the current command
-        echo "Executing: ./runNeurons $ARG1 $ARG2 $ARG3 $FILENAME1 $FILENAME2"
-
-        # Run the program
-        ./runNeurons "$ARG1" "$ARG2" "$ARG3" "$FILENAME1" "$FILENAME2"
-
-        # Check the exit status
-        if [ $? -ne 0 ]; then
-            echo "Error: Program failed on iteration $i with filename $FILENAME1" 
-            exit 1
-        fi
-    done
-
-    echo "All executions completed successfully!"
-
-}
-
-run_cluster_simulation() {
-    echo "Running Cluster Simulation..."
-
-    # Fixed arguments
-    ARG1=175    # Box Size
-    ARG2=100000 # Time Steps
-    ARG3="positions/neurons_dat_5k_175Lx_cluster"   # Positions data 
-    BASE_FILENAME_CONNECTIONS="connections_dat"     # Connections fine name
-    BASE_FILENAME_RESULTS="results_dat"             # Multi branch results file name
-    OUTPUT_DIR1="simulations"
-    OUTPUT_DIR2="5k_cluster_175Lx_0,5rad_0,12823pac_10e5time_1branch_2synapses"
-
-
-    # Loop from 1 to 50
-    for i in {1..50}; do
-        # Create the full filename with the current value of i
-        FILENAME1="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_CONNECTIONS}_${i}"
-        FILENAME2="${OUTPUT_DIR1}/${OUTPUT_DIR2}/${BASE_FILENAME_RESULTS}_${i}"
-
-
-        # Display the current command
-        echo "Executing: ./runNeurons $ARG1 $ARG2 $ARG3 $FILENAME1 $FILENAME2"
-
-        # Run the program
-        ./runNeurons "$ARG1" "$ARG2" "$ARG3" "$FILENAME1" "$FILENAME2"
-
-        # Check the exit status
-        if [ $? -ne 0 ]; then
-            echo "Error: Program failed on iteration $i with filename $FILENAME1" 
-            exit 1
-        fi
-    done
-
-    echo "All executions completed successfully!"
-
-}
-
-# Execute each function in sequence
-run_random_simulation
-if [ $? -ne 0 ]; then
-    echo "Random simulation failed. Exiting."
-    exit 1
-fi
-
-
-run_lattice_simulation
-if [ $? -ne 0 ]; then
-    echo "Lattice simulation failed. Exiting."
-    exit 1
-fi
-
-run_hexagonal_simulation
-if [ $? -ne 0 ]; then
-    echo "Hexagonal simulation failed. Exiting."
-    exit 1
-fi
-
-run_cluster_simulation
-if [ $? -ne 0 ]; then
-    echo "Cluster simulation failed. Exiting."
-    exit 1
-fi
+done
 
 echo "All simulations completed successfully!"
