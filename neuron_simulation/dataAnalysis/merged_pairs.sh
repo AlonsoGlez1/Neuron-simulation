@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Base directory where the statistics folders are stored
-base_dir="../simulations"
+base_dir="../simulations/Tsitsi_0,9_3,0_2,0"
 
 # Define the group pairs to compare
 comparisons=(
@@ -19,8 +19,8 @@ for pair in "${comparisons[@]}"; do
     echo "Processing comparison: $group1 vs $group2"
 
     # Find all matching directories for each group
-    directories1=($(ls -d "$base_dir/${group1}_"*_statistics 2>/dev/null))
-    directories2=($(ls -d "$base_dir/${group2}_"*_statistics 2>/dev/null))
+    directories1=($(ls -d "$base_dir/"*"${group1}_"*_statistics 2>/dev/null))
+    directories2=($(ls -d "$base_dir/"*"${group2}_"*_statistics 2>/dev/null))
 
     # Skip if either group has no directories
     if [ ${#directories1[@]} -eq 0 ] || [ ${#directories2[@]} -eq 0 ]; then
@@ -52,7 +52,7 @@ for pair in "${comparisons[@]}"; do
             set key box;
             set key opaque;
 
-            set format x '10^{%L}';
+            set format x '%.1te%T';
             set style fill transparent solid 0.25;
             set style fill noborder;
         "
