@@ -5,12 +5,12 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define IMPORT_NEURONS_LIST false  // Select false to generate neurons, select true to read data from neurons_dat.
+#define IMPORT_NEURONS_LIST false // Select false to generate neurons, select true to read data from neurons_dat.
 #define RUN_WHOLE_SIMULATION true // Select true to run the whole program, select false to only generate neurons.
 #define USE_ARGV false 	          // Select true to use command line inputs in the bash script.
 
 #define PI 3.141592654            // Constant for the value of pi.
-#define DECAY_FACTOR 3.0         // Factor for the distance decay in connection probability.
+#define DECAY_FACTOR 3.0          // Factor for the distance decay in connection probability.
 #define INT_DIST_FACTOR 3.0       // Factor for the interdistance decay in connection probability.
 #define SCALE_FACTOR 0.9          // Global factor to scale the probability distribution.
 #define PACKING_FRACTION 0.55     // Maximum packing fraction of the system (area occupied / total area).
@@ -22,7 +22,7 @@ typedef struct
    float x;       // x-coordinate of the neuron
    float y;       // y-coordinate of the neuron
    float radius;  // Radius of the neuron
-   int synapses;   // Number of synapses (connections)
+   int synapses;  // Number of synapses (connections)
 } Neuron;
 
 // Function prototypes
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
    float cutoffRadius = 0.25 * maxDistance;          // Distance at which consider near neurons for the neighbhours list
 
    // Calculate distances between all neurons and store them
-   float **distanceMatrix = initializeDistanceMatrix(neurons, N_neurons);
+   float** distanceMatrix = initializeDistanceMatrix(neurons, N_neurons);
 
    // Create an array of arrays (list of nearby neurons)
    int** nearbyNeurons = NULL;
