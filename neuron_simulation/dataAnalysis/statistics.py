@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 # Base directory containing all subdirectories
-base_directory = os.path.join("..", "simulations", "Tsitsi_0,9_3,0_2,0")
+base_directory = os.path.join("..", "simulations", "Ising_0,9_3,0_6,0_mas")
 
 # Columns to ignore
 ignore_columns = {"Xlabel", "Ylabel", "Radius", "TimeStep"}  # Replace with actual column names

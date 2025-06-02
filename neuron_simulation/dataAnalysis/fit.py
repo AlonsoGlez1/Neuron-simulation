@@ -5,8 +5,8 @@ from scipy.special import erf
 import os
 
 # Load data
-filename = "ConnectedFraction_statistics.txt"
-base_directory = os.path.join("..", "simulations", "Ising_0,9_10,0_6,0", "5k_random_100Lx_0,5rad_0,39270pac_10e5time_1branch_2synapses_statistics")
+filename = "MSDisp_statistics.txt"
+base_directory = os.path.join("..", "simulations", "Ising_0,9_10,0_6,0", "5k_cluster_100Lx_0,5rad_0,39270pac_10e5time_1branch_2synapses_statistics")
 file_path = os.path.join(base_directory, filename)
 data = np.genfromtxt(file_path, skip_header=1)
 x_data = data[:, 0]
@@ -30,7 +30,7 @@ try:
     A_pow, B_pow = params_power
     
     # Modified function fit
-    p0_mod = [1, 0.01]
+    p0_mod = [1, 0.001]
     params_mod, _ = curve_fit(modified_function, x_data, y_data, p0=p0_mod)
     A_mod, B_mod = params_mod
     
